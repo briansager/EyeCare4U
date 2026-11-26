@@ -30,6 +30,11 @@ public sealed class ReminderExperience : IDisposable
     private long _breakStart;
     private long _breakLastPoll;
     private long _breakReliability;
+    private Guid _occurrenceId = Guid.NewGuid();
+    private Guid? _breakId;
+    public event Action<ReminderLifecycle>? Lifecycle;
+    private void Record(HistoryKind kind, string reason = "" ) =>
+        Lifecycle?.Invoke(new(Guid.NewGuid(), _occurrenceId, _breakId, kind, reason));
 
     public ReminderExperience(ActivitySession session, IReminderNotifications notifications,
         IReminderSounds sounds, TimeProvider? timeProvider = null)
@@ -109,6 +114,7 @@ public sealed class ReminderExperience : IDisposable
                     _session.Status == ActivityStatus.PowerTransition ? "power transition" :
                     _session.Status == ActivityStatus.Unavailable ? "monitoring unavailable" : "session or monitoring baseline changed";
                 Result = $"Break interrupted: {reason}. Reminder remains due.";
+                Record(HistoryKind.BreakInterrupted, reason);
                 StopEffects();
             }
             else if (_time.GetElapsedTime(_breakStart, now) >= TimeSpan.FromSeconds(20))
@@ -118,6 +124,7 @@ public sealed class ReminderExperience : IDisposable
                 _session.Timer.Reset();
                 _normalWasDue = false;
                 Result = "Break timer finished.";
+                Record(HistoryKind.BreakTimerFinished);
                 if (BreakSoundsEnabled) Effect(() => _sounds.Play(SoundCue.BreakEnd), "Break end sound could not be played.");
             }
             _breakLastPoll = now;
@@ -142,12 +149,17 @@ public sealed class ReminderExperience : IDisposable
         }
     }
 
-    private void NewOccurrence() { DueOccurrence++; _alertAttempted = false; DeliveryNote = ""; }
+    private void NewOccurrence()
+    {
+        DueOccurrence++; _alertAttempted = false; DeliveryNote = "";
+        _occurrenceId = Guid.NewGuid(); _breakId = null; Record(HistoryKind.ReminderDue);
+    }
     public bool Start()
     {
         if (!CanEditInterval) return false;
         Synchronize(false);
         Result = ""; BreakState = BreakState.None;
+        _occurrenceId = Guid.NewGuid(); _breakId = null;
         return _session.Timer.Start();
     }
     public bool Pause() { if (!CanPause) return false; Synchronize(false); return Mode == ReminderMode.Snooze ? _snooze.Pause() : _session.Timer.Pause(); }
@@ -161,6 +173,7 @@ public sealed class ReminderExperience : IDisposable
         Mode = ReminderMode.Break; BreakState = BreakState.Running; Result = "";
         _breakStart = _breakLastPoll = _time.GetTimestamp();
         _breakReliability = _session.ReliabilityVersion;
+        _breakId = Guid.NewGuid(); Record(HistoryKind.BreakStarted);
         if (BreakSoundsEnabled) Effect(() => _sounds.Play(SoundCue.BreakStart), "Break start sound could not be played.");
         return true;
     }
@@ -169,6 +182,7 @@ public sealed class ReminderExperience : IDisposable
         if (!CanCancelBreak) return false;
         StopEffects(); Mode = ReminderMode.Interval; BreakState = BreakState.Cancelled;
         Result = "Break cancelled. Reminder remains due.";
+        Record(HistoryKind.BreakCancelled);
         return true;
     }
     public bool Snooze(int minutes)
@@ -178,11 +192,14 @@ public sealed class ReminderExperience : IDisposable
         if (!CanResolveDue) return false;
         StopEffects(); _alertAttempted = true; Result = ""; BreakState = BreakState.None;
         _snooze.Reset(); _snooze.SetInterval(minutes); _snooze.Start(); Mode = ReminderMode.Snooze;
+        Record(HistoryKind.SnoozeStarted, $"{minutes} minutes" );
         return true;
     }
     public void Reset()
     {
         if (_disposed) return;
+        if (CanCancelBreak) Record(HistoryKind.BreakInterrupted, "Cycle reset");
+        if (CanReset) Record(HistoryKind.CycleReset);
         StopEffects(); Mode = ReminderMode.Interval; BreakState = BreakState.None; Result = ""; DeliveryNote = "";
         _snooze.Reset(); _session.Timer.Reset(); _normalWasDue = false; _alertAttempted = true;
     }
@@ -198,6 +215,7 @@ public sealed class ReminderExperience : IDisposable
     public void Dispose()
     {
         if (_disposed) return;
+        if (CanCancelBreak) Record(HistoryKind.BreakInterrupted, "Application closed");
         _disposed = true; StopEffects();
         Effect(_notifications.Dispose, "Notification cleanup failed.");
         Effect(_sounds.Dispose, "Sound cleanup failed.");

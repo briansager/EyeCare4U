@@ -21,6 +21,9 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private string _lastResumeNotice = "";
     private string _selectedInterval = "20";
     private string _customMinutes = "20";
+    private int _lastValidCustomMinutes = 20;
+    public HistoryViewModel? History { get; private set; }
+    public void AttachHistory(HistoryViewModel history) { History=history; Changed(nameof(History)); }
     private TimerState _lastState = TimerState.Ready;
     private string _lastRemaining = "";
 
@@ -44,6 +47,23 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         Refresh();
     }
 
+    public UserPreferences CapturePreferences()=>new UserPreferences
+    {
+        SelectedInterval=SelectedInterval,CustomMinutes=_lastValidCustomMinutes,
+        IdleThresholdSeconds=_session?.IdleThresholdSeconds??120,NotificationsEnabled=NotificationsEnabled,
+        ReminderSoundEnabled=ReminderSoundEnabled,BreakSoundsEnabled=BreakSoundsEnabled,SnoozeMinutes=SelectedSnooze
+    }.Validated();
+    public void RestorePreferences(UserPreferences stored)
+    {
+        if(!CanEditInterval) throw new InvalidOperationException("Preferences load only into Ready.");
+        var p=stored.Validated();
+        CustomMinutes=p.CustomMinutes.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        SelectedInterval=p.SelectedInterval;
+        IdleThresholdText=p.IdleThresholdSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        NotificationsEnabled=p.NotificationsEnabled; ReminderSoundEnabled=p.ReminderSoundEnabled;
+        BreakSoundsEnabled=p.BreakSoundsEnabled; SelectedSnooze=p.SnoozeMinutes;
+        Refresh();
+    }
     public void AttachExperience(ReminderExperience experience)
     {
         if (_experience is not null) throw new InvalidOperationException("An experience is already attached.");
@@ -106,7 +126,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     public string MonitoringNote => _session?.MonitoringNote ?? "";
     public string ResumeNotice => _session?.ResumeNotice ?? "";
     public string ThresholdValidationError => IdleThresholdInput.TryParse(IdleThresholdText, out _) ? "" : IdleThresholdInput.ErrorMessage;
-    public string AppliedIdleThreshold => $"Applied idle threshold: {_session?.IdleThresholdSeconds ?? 120} seconds. Session only.";
+    public string AppliedIdleThreshold => $"Applied idle threshold: {_session?.IdleThresholdSeconds ?? 120} seconds. Saved at checkpoints.";
     public string IdleThresholdText
     {
         get => _idleThresholdText;
@@ -171,6 +191,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         {
             if (!CanEditInterval || value == _customMinutes) return;
             _customMinutes = value;
+            if(IntervalInput.TryParse(value,out var valid)) _lastValidCustomMinutes=valid;
             Changed(); ApplyInterval(); Refresh();
         }
     }

@@ -23,14 +23,18 @@ public sealed class ActivitySession
         public override long GetTimestamp() => Ticks;
     }
 
-    public ActivitySession(IActivitySource source, TimeProvider? timeProvider = null)
+    public ActivitySession(IActivitySource source, TimeProvider? timeProvider = null, int idleThresholdSeconds = 120)
     {
+        if(idleThresholdSeconds is <30 or >900) throw new ArgumentOutOfRangeException(nameof(idleThresholdSeconds));
+        IdleThresholdSeconds=idleThresholdSeconds;
         _source = source;
         _time = timeProvider ?? TimeProvider.System;
         Timer = new ReminderTimer(_activeClock);
         Poll(); // Launch baseline; never reconstruct activity before this sample.
     }
 
+    public event Action<ActivityObservation>? Observed;
+    public ActivityObservation? LastObservation { get; private set; }
     public ReminderTimer Timer { get; }
     public ReminderTimer CreateActivityTimer() => new(_activeClock);
     public long ReliabilityVersion { get; private set; }
@@ -85,6 +89,8 @@ public sealed class ActivitySession
             return;
         }
 
+        var windows = new List<ActivityWindow>();
+        var observedSpan = TimeSpan.Zero;
         if (_previous is { } previous)
         {
             var elapsed = _time.GetElapsedTime(_previousTimestamp, now);
@@ -101,11 +107,13 @@ public sealed class ActivitySession
                 Unavailable("Discontinuous input timing; unknown time excluded. Retrying.");
                 return;
             }
+            if (previous.Locked == reading.Locked) observedSpan = elapsed;
             if (!previous.Locked && !reading.Locked)
             {
                 var threshold = TimeSpan.FromSeconds(IdleThresholdSeconds);
                 var oldEnd = Clamp(threshold - previous.IdleFor, elapsed);
                 var credited = oldEnd;
+                if (oldEnd > TimeSpan.Zero) windows.Add(new(TimeSpan.Zero, oldEnd));
                 if (reading.InputTimestamp != previous.InputTimestamp)
                 {
                     // Union of the old grace window and the window beginning at the latest input.
@@ -113,7 +121,11 @@ public sealed class ActivitySession
                     var start = Clamp(elapsed - reading.IdleFor, elapsed);
                     var end = Clamp(elapsed - reading.IdleFor + threshold, elapsed);
                     var overlapEnd = oldEnd > start ? oldEnd : start;
-                    if (end > overlapEnd) credited += end - overlapEnd;
+                    if (end > overlapEnd)
+                    {
+                        credited += end - overlapEnd;
+                        windows.Add(new(overlapEnd, end - overlapEnd));
+                    }
                 }
                 _activeClock.Ticks += credited.Ticks;
             }
@@ -125,6 +137,8 @@ public sealed class ActivitySession
         Status = reading.Locked ? ActivityStatus.Locked :
             reading.IdleFor >= TimeSpan.FromSeconds(IdleThresholdSeconds) ? ActivityStatus.Idle : ActivityStatus.Active;
         MonitoringNote = "";
+        LastObservation = new(now, _time.GetUtcNow(), observedSpan, windows.ToArray());
+        Observed?.Invoke(LastObservation);
         Timer.Refresh();
     }
 

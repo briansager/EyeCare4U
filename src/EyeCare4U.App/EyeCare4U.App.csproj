@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\EyeCare4U.Core\EyeCare4U.Core.csproj" />
+    <ProjectReference Include="..\EyeCare4U.Storage\EyeCare4U.Storage.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

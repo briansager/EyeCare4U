@@ -26,6 +26,7 @@ public sealed class WindowsActivitySource : IActivitySource, IDisposable
     }
 
     public event Action<SessionSignal>? Signal;
+    public event Action? TimeMappingChanged;
 
     private void RegisterNotifications()
     {
@@ -75,6 +76,7 @@ public sealed class WindowsActivitySource : IActivitySource, IDisposable
     private nint WindowProc(nint hwnd, int message, nint wParam, nint lParam, ref bool handled)
     {
         if (_disposed) return 0;
+        if(message==0x001E) TimeMappingChanged?.Invoke(); // WM_TIMECHANGE, independent of monotonic timer intent.
         SessionSignal? signal = null;
         if (message == 0x02B1) // WM_WTSSESSION_CHANGE; registered for this session only.
         {
@@ -107,7 +109,7 @@ public sealed class WindowsActivitySource : IActivitySource, IDisposable
         if (_sessionRegistered) WTSUnRegisterSessionNotification(_window.Handle);
         if (_powerRegistration != 0) UnregisterSuspendResumeNotification(_powerRegistration);
         _window.RemoveHook(WindowProc);
-        Signal = null;
+        Signal = null; TimeMappingChanged = null;
     }
 
     [StructLayout(LayoutKind.Sequential)]

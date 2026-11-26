@@ -2,20 +2,21 @@
 
 A Windows desktop portfolio project for configurable eye-break reminders during work or gaming.
 
-**Current status: Milestone 4.** The app includes explicit 20-second breaks, 1/5/10-minute active-time snooze, once-per-occurrence Windows reminders, and opt-in sounds, alongside the existing countdown, tray, estimated activity, and automatic holds. It launches Ready without starting an interval. No forced overlay, camera, AI, database, persistent settings/history, autostart, per-app tracking, game detection, or telemetry is implemented.
-
+**Current status: Milestone 5.** Local SQLite history and validated preferences now survive restart. The dashboard shows saved activity today, break timers finished, seven calendar days, and up to 50 recent events. Every launch starts Ready with fresh monitoring baselines. Existing timers, tray, breaks, snooze, notifications and optional sounds remain. No autostart, installer, cloud/account, per-app tracking, camera, AI, telemetry, or medical-effectiveness claim is implemented.
 ## Technology and structure
 
 C#, .NET 10 LTS, WPF/XAML, and straightforward MVVM. No MVVM framework or service container.
 
 - `src/EyeCare4U.Core`: reminder state machine; activity accounting and credited-activity clock; input/power counter validation; interval/threshold parsing. No WPF or Windows API dependency.
 - `src/EyeCare4U.App`: views, view model, application lifecycle, Windows input/session/power adapter, and Windows Forms NotifyIcon adapter. Window and tray share one ActivitySession, reminder, and view model.
+- `src/EyeCare4U.Storage`: small parameterized SQLite store with transactional schema versioning and a FIFO worker queue; orchestration uses Core history contracts.
+- `tests/EyeCare4U.Storage.Tests`: temporary-database schema, preferences, retry, clear-race, recovery and shutdown persistence tests.
 - `tests/EyeCare4U.Core.Tests`: deterministic timer, usage, policy, parsing, and counter tests.
 - `tests/EyeCare4U.App.Tests`: view-model validation, commands, holds, and state-notification tests, without launching a window.
 - `.github/workflows/build.yml`: Windows restore, Release build, and full tests. Check the corresponding GitHub Actions run independently of local results.
 - `Assets/EyeCare4U.ico` in App: original application-owned eye icon, drawn locally with no downloaded branding.
 
-No new NuGet dependency was introduced for Milestones 3–4. Windows Forms is a built-in Windows Desktop framework reference; Windows monitoring, silent shell balloons, and optional local sound playback use small native adapters. ReminderExperience in Core coordinates break/snooze state and fakeable notification/sound interfaces. Test dependencies remain xunit 2.9.3, Microsoft.NET.Test.Sdk 17.14.1, and xunit.runner.visualstudio 3.1.4.
+No new NuGet dependency was introduced for Milestones 3–4. Windows Forms is a built-in Windows Desktop framework reference; Windows monitoring, silent shell balloons, and optional local sound playback use small native adapters. ReminderExperience in Core coordinates break/snooze state and fakeable notification/sound interfaces. Milestone 5 adds [Microsoft.Data.Sqlite 11.0.0](https://www.nuget.org/packages/Microsoft.Data.Sqlite/11.0.0), verified as stable and compatible with net10.0 through official NuGet metadata and successful restore/build/native SQLite tests. Its SQLitePCLRaw native bundle is transitive. Test dependencies remain xunit 2.9.3, Microsoft.NET.Test.Sdk 17.14.1, and xunit.runner.visualstudio 3.1.4.
 
 ## Prerequisites and commands
 
@@ -36,7 +37,7 @@ Restore can require NuGet access. Building the whole solution and running the Ap
 
 ## Estimated activity: exact policy
 
-“Estimated active PC time — this session” begins at the first reliable launch sample and ends when the app exits. It continues independently of Ready, Running, Paused, Due, snooze, or break state. Starting or finishing a break never rewrites usage totals or establishes actual eye rest. Totals and settings are not saved. Reopening the same hidden window does not begin a new session.
+“Estimated active PC time — this session” begins at the first reliable launch sample and ends when the app exits. It continues independently of Ready, Running, Paused, Due, snooze, or break state. Starting or finishing a break never rewrites usage totals or establishes actual eye rest. The session metric starts fresh; accepted history and valid preferences are saved separately as described below. Reopening the same hidden window does not begin a new session.
 
 The input-idle threshold defaults to **120 seconds**. In Ready, enter a whole number from **30 through 900 seconds**. Whitespace is accepted; signs, fractions, overflow, and out-of-range values are rejected. Invalid text stays visible with an accessible error and the last applied threshold displayed; Start is disabled until corrected. Monitoring continues under the explicitly displayed applied setting. Valid changes settle the old policy, preserve accumulated totals, and establish a fresh baseline under the new policy. They never recalculate history. No threshold changes are allowed while Running (including held), Paused, Due, snoozing, or running a break.
 
@@ -77,7 +78,7 @@ Core ReminderTimer still accepts injected time and is independently tested. In t
 
 A reminder reaches Due after its configured estimated-active interval. It stays Due until Start eye break, Snooze, or Reset. It never automatically opens/raises a window, minimizes another app, blocks input, or starts a break. Notification dismissal/timeout changes no state. An explicit notification click may restore the existing window.
 
-Each new Due occurrence has one eligible alert opportunity. Notifications are enabled by default; reminder sound and break start/end sounds are disabled by default. These options are session-only. Alerts wait until monitoring reports Active; idle, lock, suspend, failure, and uncertain gaps defer them. On eligibility, enabled effects are attempted once, including if the API fails or Windows suppresses display. There are no retry storms on restore, input changes, or recovery. Settings at the first eligible opportunity apply to that occurrence; enabling an option later does not replay it. Disabling notifications clears the outstanding request; disabling a sound option stops app-owned sound playback.
+Each new Due occurrence has one eligible alert opportunity. Notifications are enabled by default; reminder sound and break start/end sounds are disabled by default. These options are saved at checkpoints. Alerts wait until monitoring reports Active; idle, lock, suspend, failure, and uncertain gaps defer them. On eligibility, enabled effects are attempted once, including if the API fails or Windows suppresses display. There are no retry storms on restore, input changes, or recovery. Settings at the first eligible opportunity apply to that occurrence; enabling an option later does not replay it. Disabling notifications clears the outstanding request; disabling a sound option stops app-owned sound playback.
 
 **Start eye break** is available from Due when monitoring is reliable and unlocked/awake (Active or input-idle). It begins a separate monotonic **20-second** timer and shows “Look away from the screen at something about 6 metres away.” An optional end sound lets the user look away without watching the display. The normal interval stays stopped at Due. Input inactivity alone does not pause or complete the break, and the break can run while the window is hidden.
 
@@ -112,7 +113,7 @@ Controls support Tab/Shift+Tab, scrolling, and access keys: Alt+S Start, Alt+P P
 3. Start and provide keyboard/mouse input. Stop input longer than 30 seconds. Confirm Waiting for activity, frozen remaining time, and frozen estimated total after the grace period. Provide input and confirm automatic continuation without resetting.
 4. Pause manually. Provide input and confirm estimated activity can grow while the reminder remains Paused by you. Repeat through owner-controlled lock/unlock and sleep/wake; never rely on simulation as proof of Windows behavior.
 5. During a run, lock, wait, unlock; check no locked time was credited. Repeat with sleep/hibernate/Modern Standby as available. After wake, verify a fresh baseline, no sleep jump, no immediate Due, and no auto-resume from manual Pause. Test overlapping idle/lock conditions. Start/Resume while blocked should arm and wait.
-6. Reach Due using actual active time, then confirm input/unlock/recovery cannot restart it. Reset restores Ready/full interval. Settings return to defaults on a new app launch.
+6. Reach Due using actual active time, then confirm input/unlock/recovery cannot restart it. Reset restores Ready/full interval. Valid saved preferences return on launch; countdowns never resume.
 7. Exercise tray commands against the visible window. Hide during a run, wait, restore, and verify the same session/window and policy-aware countdown. Repeat Open/double-click, Close, and tray Exit (including Exit while hidden); visually check icon removal.
 8. Check the new section at minimum window size, actual increased Windows text/display scaling, keyboard-only operation, and a screen reader. An owner-controlled delayed UI/debugger pause can exercise the five-second gap fallback; do not interpret that simulation as sleep verification.
 
@@ -120,13 +121,30 @@ Preserved Milestone 2 outstanding checks: direct tray synchronization; hidden co
 
 For Milestone 4 review, keep Custom = 1 and the idle threshold at 120 initially. Let the interval reach Due with another app active; confirm no focus change and at most one notification. Dismiss the notification and check Due remains. Start a break, leave input untouched for 20 seconds, and verify “Break timer finished” / Ready / full interval without auto-start. On later cycles, cancel a break, try each snooze choice, pause/resume snooze, and Reset from both modes. Opt into sounds explicitly to check start/end/reminder cues. Repeat hidden through tray controls and owner-controlled lock/sleep/failure scenarios. DND/fullscreen, actual sounds, direct tray interaction, lock/sleep, OS scaling, and screen-reader checks require actual platform verification, not just tests.
 
+## Local persistence and history
+
+Database: `%LOCALAPPDATA%\EyeCare4U\history.db` (this review machine: `C:\Users\Brian\AppData\Local\EyeCare4U\history.db`). It is outside the repository/install directory. History is local, unencrypted SQLite, accessible to software with access to this Windows account. There is no automatic retention limit; the dashboard query limits do not delete older records.
+
+Saved preferences: interval selection (20/30/60/Custom), valid custom minutes (1–240; default 20), idle threshold (30–900; default 120), notifications (default on), reminder sound and break sounds (default off), snooze choice (1/5/10; default 5). Missing/invalid values fall back to these defaults; invalid text edits do not replace the last valid value. No running intent, countdown, snooze or break is restored. A per-user Windows mutex rejects a second launch before monitoring/storage startup.
+
+Schema version 1 stores a deletion epoch, preferences, collection IDs/start UTC, cumulative usage bucket IDs with recorded local date/offset/zone, accepted monotonic ticks and first/last UTC, and event/occurrence/break-attempt IDs with kind, non-sensitive reason, UTC, recorded date/offset/zone and tie-breaking sequence. Events are Due, break start/finish/cancel/interruption, snooze and relevant Reset. Reset/close during a break records an interruption. These records say nothing about notification delivery/viewing or verified eye rest; balloon dismissal is not an event.
+
+History consumes accepted estimator windows, including partial idle-cutoff intervals, rather than estimating again. Reliable mappings split at local midnight and DST offset transitions while preserving monotonic ticks. Old date/offset/zone attribution is retained after timezone changes. A timezone/rule change, explicit Windows time-change signal, or wall-versus-monotonic mismatch over 250 ms re-baselines mapping: accepted ticks for the uncertain sample are retained separately as **without reliable daily attribution**, excluded from daily totals. Unobserved gaps are never filled. The timezone cache refreshes at checkpoints as a fallback. Daily summaries use the current local calendar labels for today and the preceding six dates; observed zero differs from no recorded data. Event display uses the recorded offset. A wall-clock correction can change UTC event ordering; recorded sequence breaks equal-time ties within a collection.
+
+Checkpoint targets are roughly 15 seconds, plus lifecycle signals, Refresh saved history, and orderly Close/tray Exit. Database work runs on one FIFO background worker because [Microsoft documents that SQLite async I/O executes synchronously](https://learn.microsoft.com/en-us/dotnet/standard/data/sqlite/async). Stable IDs and cumulative upserts make retries/checkpoints idempotent; foreign keys, indexed queries and transactions coordinate writes. The dashboard shows saved snapshots and their capture time, never an unsaved estimate labelled durable. Healthy crashes/forced termination can lose activity/events/preferences since the last successful snapshot (typically roughly 15 seconds); stalls, failures or OS termination can lose more. There is no backfill. Close awaits the queued final snapshot without blocking the UI thread.
+
+**Clear history…** opens an in-app confirmation. Confirming logically deletes all saved usage/events/collections, retains preferences/current timer/current-session estimate, and starts a fresh collection boundary. Transactions serialize old writes before deletion; epoch checks reject stale writes afterward. The first partial observation is clipped at the request boundary. New monitoring continues; the next checkpoint saves only new history. This is not forensic secure erasure: database free pages, filesystem remnants and backups may retain data. If deletion fails, existing saved records remain and collection still restarts at the request boundary; old unsaved pending history is discarded conservatively. If deletion succeeds but dashboard reload fails, status says so.
+
+Unavailable, unreadable, corrupt or newer-schema storage leaves timers/reminders working in memory and reports **History is not being saved**. Existing data is preserved; automatic checkpoints/manual Refresh retry. Successful recovery saves retained cumulative accepted activity and pending events without duplicates; recovered old preferences do not overwrite current in-memory choices. Pending events are capped at 5,000 during prolonged failure, with a visible warning if oldest unsaved events are dropped. Unsupported newer/unrecognized unversioned databases are never rebuilt automatically. Schema creation/version changes are transactional.
+
+See [Milestone 5 review](docs/MILESTONE-5-REVIEW.md) for actual validation and the remaining Windows checks. To review, launch with the commands above, change a valid preference, Close/reopen and confirm Ready plus the saved choice and history. Use Custom = 1 for Due/break events. Refresh repeatedly and restart; prior totals must persist without duplication. Clear only history you intend to delete; cancel keeps it. Confirmed Clear keeps the live session/timer, then new activity should reappear at a later checkpoint. Launch again while open: only one monitoring process should remain.
 ## Seven-milestone roadmap
 
 1. Desktop foundation — implemented.
 2. Timer and system tray — implemented; outstanding manual checks preserved.
 3. Session-only estimated usage and idle/lock/sleep-aware timing — implemented; platform checks distinguished from deterministic tests.
 4. Break experience and reminders — implemented: explicit 20-second breaks, active-time snooze, nonintrusive notifications, optional sounds. No overlay or game detection.
-5. Local persistence/preferences — future: SQLite, minimal history, retention/deletion, optional autostart.
+5. Local persistence/preferences — implemented: SQLite history, validated preferences, seven-day summaries, recent events and confirmed logical deletion. No autostart or automatic retention policy.
 6. Release readiness/evidence — future: packaging, reliability/accessibility, carefully sourced research, owner-selected license.
 7. Optional computer vision — future only: explicit opt-in, local processing, consent, and documented limits. No camera or AI scaffolding before this milestone.
 
@@ -134,9 +152,9 @@ For Milestone 4 review, keep Custom = 1 and the idle threshold at 120 initially.
 
 The 20-minute default and 20-second break timer are configurable reminders, not medical treatment or a medically optimal schedule. Break-timing recommendations and research evidence will be documented carefully in a later milestone; this app makes no medical-effectiveness claim.
 
-**Implemented:** local session-only input-age/lock/power processing and an accumulated duration. No keystrokes, mouse coordinates, screenshots, foreground titles, process inventories, or browsing history are recorded. Session-query buffers are freed immediately; only connection/lock flags are read into managed code. Nothing is persisted or sent as application telemetry. Development tools/GitHub Actions have their own network behavior. No camera features existed in Milestones 1–2 or exist now.
+**Implemented:** local input-age/lock/power processing, session estimates, and the minimal SQLite history/preferences described above. No keystrokes, mouse coordinates, screenshots, foreground titles, process inventories, or browsing history are recorded. Session-query buffers are freed immediately; only connection/lock flags are read into managed code. Only the documented preferences, accepted duration aggregates and lifecycle events are persisted. Nothing is sent as application telemetry. Development tools/GitHub Actions have their own network behavior. No camera features existed in Milestones 1–2 or exist now.
 
-**Future intentions:** continue minimal collection/local processing, explain any future retained data and deletion controls before introducing them, and describe usage values as estimates. Persistent privacy controls and optional camera processing are not implemented promises.
+**Future intentions:** continue minimal collection/local processing, explain any future retained data and deletion controls before introducing them, and describe usage values as estimates. Clear history is implemented; optional camera processing remains deferred.
 
 Microsoft documentation consulted for the adapter and conservative policy:
 
@@ -145,6 +163,6 @@ Microsoft documentation consulted for the adapter and conservative policy:
 - [WTS session query](https://learn.microsoft.com/en-us/windows/win32/api/wtsapi32/nf-wtsapi32-wtsquerysessioninformationw), [extended session flags](https://learn.microsoft.com/en-us/windows/win32/api/wtsapi32/ns-wtsapi32-wtsinfoex_level1_w), and [session notification registration](https://learn.microsoft.com/en-us/windows/win32/api/wtsapi32/nf-wtsapi32-wtsregistersessionnotification). Modern supported Windows flag meanings are used, not Windows 7's reversed flags.
 - [Power notification registration](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-registersuspendresumenotification), [power messages](https://learn.microsoft.com/en-us/windows/win32/power/wm-powerbroadcast), and [automatic resume limitations](https://learn.microsoft.com/en-us/windows/win32/power/pbt-apmresumeautomatic).
 
-No release/license is selected. The owner will choose a license before public release. Standing milestone commit/push authorization and safety/review requirements are recorded in AGENTS.md. No work beyond Milestone 4 is included.
+No release/license is selected. The owner will choose a license before public release. Standing milestone commit/push authorization and safety/review requirements are recorded in AGENTS.md. No work beyond Milestone 5 is included.
 
 Additional Microsoft delivery references: [NOTIFYICONDATA](https://learn.microsoft.com/en-us/windows/win32/api/shellapi/ns-shellapi-notifyicondataw) and [PlaySound](https://learn.microsoft.com/en-us/previous-versions/dd743680(v=vs.85)).

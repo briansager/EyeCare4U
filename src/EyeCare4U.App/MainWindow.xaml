@@ -67,7 +67,7 @@
                 </StackPanel>
             </Border>
             <TextBlock Text="Interval settings" FontSize="21" FontWeight="SemiBold" Margin="0,20,0,6" />
-            <TextBlock Text="Session only. Reset to Ready before changing the interval." Foreground="#425E56" Margin="0,0,0,8" />
+            <TextBlock Text="Preferences are saved locally at checkpoints. Reset to Ready before changing timing settings." Foreground="#425E56" Margin="0,0,0,8" />
             <Label Target="{Binding ElementName=IntervalSelector}" Padding="0,4"><AccessText Text="Interval (_minutes)" TextWrapping="Wrap" /></Label>
             <ComboBox x:Name="IntervalSelector" ItemsSource="{Binding IntervalOptions}" SelectedItem="{Binding SelectedInterval}"
                       AutomationProperties.Name="Interval in minutes" IsEnabled="{Binding CanEditInterval}" Padding="8" HorizontalContentAlignment="Stretch" />
@@ -78,18 +78,58 @@
                 <Label Target="{Binding ElementName=CustomInput}" Padding="0,8,0,4"><AccessText Text="_Custom whole minutes (1–240)" TextWrapping="Wrap" /></Label>
                 <TextBox x:Name="CustomInput" Text="{Binding CustomMinutes, UpdateSourceTrigger=PropertyChanged}"
                          IsEnabled="{Binding CanEditInterval}" Padding="8" MaxLength="32"
-                         AutomationProperties.Name="Custom whole minutes, 1 through 240" AutomationProperties.ItemStatus="{Binding ValidationError}" AutomationProperties.HelpText="Enter a whole number from 1 through 240. Settings last for this session." />
+                         AutomationProperties.Name="Custom whole minutes, 1 through 240" AutomationProperties.ItemStatus="{Binding ValidationError}" AutomationProperties.HelpText="Enter a whole number from 1 through 240. Valid preferences are saved locally at checkpoints." />
             </StackPanel>
             <TextBlock Style="{StaticResource OptionalText}" x:Name="ValidationText" AutomationProperties.LiveSetting="Polite" Text="{Binding ValidationError}" Foreground="#9D2525" Margin="0,8,0,0" />
-            <TextBlock Text="Reminder options — session only" FontSize="21" FontWeight="SemiBold" Margin="0,16,0,8" />
+            <TextBlock Text="Reminder options — saved locally" FontSize="21" FontWeight="SemiBold" Margin="0,16,0,8" />
             <CheckBox AutomationProperties.Name="System notifications" IsChecked="{Binding NotificationsEnabled}" Margin="0,4"><AccessText Text="S_ystem notifications" TextWrapping="Wrap" /></CheckBox>
             <CheckBox AutomationProperties.Name="Reminder sound" IsChecked="{Binding ReminderSoundEnabled}" Margin="0,4"><AccessText Text="Remin_der sound" TextWrapping="Wrap" /></CheckBox>
             <CheckBox AutomationProperties.Name="Break start and end sounds" IsChecked="{Binding BreakSoundsEnabled}" Margin="0,4"><AccessText Text="Break start/end so_unds" TextWrapping="Wrap" /></CheckBox>
             <TextBlock Text="An optional end sound lets you look away without watching the countdown. A finished timer does not verify eye rest. Windows may suppress notifications during Do Not Disturb or fullscreen use; reminders stay available here and in the tray." Margin="0,8,0,12" />
+            <Border Background="White" BorderBrush="#C9D9D2" BorderThickness="1" CornerRadius="10" Padding="16" Margin="0,16,0,16" DataContext="{Binding History}">
+                <StackPanel>
+                    <TextBlock Text="History — saved on this PC" FontSize="21" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding TodayDate, StringFormat=Recorded local date: {0}}" />
+                    <TextBlock Text="Estimated active PC time — today (saved)" FontWeight="SemiBold" Margin="0,8,0,0" />
+                    <TextBlock Text="{Binding TodayActiveText}" FontSize="25" AutomationProperties.LiveSetting="Off" />
+                    <TextBlock Text="{Binding TodayFinishedText, StringFormat=Break timers finished today: {0}}" />
+                    <TextBlock Text="{Binding Status}" Margin="0,8,0,4" />
+                    <TextBlock Text="{Binding LoadingText}" Style="{StaticResource OptionalText}" />
+                    <TextBlock Text="{Binding EmptyText}" Style="{StaticResource OptionalText}" />
+                    <TextBlock Text="{Binding AttributionNote}" Style="{StaticResource OptionalText}" />
+                    <TextBlock Text="Last seven recorded local calendar dates" FontWeight="SemiBold" Margin="0,12,0,6" />
+                    <DataGrid ItemsSource="{Binding Days}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" Height="220" HeadersVisibility="Column" AutomationProperties.Name="Daily saved history">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Date" Binding="{Binding DateText}" Width="110" />
+                            <DataGridTextColumn Header="Estimated active time" Binding="{Binding ActiveTime}" Width="180" />
+                            <DataGridTextColumn Header="Break timers finished" Binding="{Binding Finished}" Width="170" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <TextBlock Text="Recent reminder and break events — up to 50" FontWeight="SemiBold" Margin="0,12,0,6" />
+                    <DataGrid ItemsSource="{Binding Events}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" Height="240" HeadersVisibility="Column" AutomationProperties.Name="Recent saved reminder and break events">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Recorded local time / offset" Binding="{Binding When}" Width="230" />
+                            <DataGridTextColumn Header="Event" Binding="{Binding Event}" Width="180" />
+                            <DataGridTextColumn Header="Reason" Binding="{Binding Reason}" Width="240" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <TextBlock Text="No recorded data differs from an observed zero. Totals cover only observed periods while EyeCare4U ran; missing periods are never filled. Break timers finished does not verify looking away or eye rest." Margin="0,8,0,8" />
+                    <WrapPanel><Button Content="Refresh saved history" Command="{Binding RefreshCommand}" /><Button Content="Clear history…" Command="{Binding ClearHistoryCommand}" /></WrapPanel>
+                    <Border Background="#FFF1DC" Padding="12" Margin="0,8,0,8">
+                        <Border.Style><Style TargetType="Border"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding ClearConfirmationVisible}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></Border.Style>
+                        <StackPanel>
+                            <TextBlock Text="Delete all saved usage and event history? Preferences, the current timer, and the session estimate are kept. New history starts from a fresh boundary. This is not secure erasure." />
+                            <WrapPanel Margin="0,8,0,0"><Button Content="Delete saved history" Command="{Binding ConfirmClearCommand}" /><Button Content="Keep history" Command="{Binding CancelClearCommand}" /></WrapPanel>
+                        </StackPanel>
+                    </Border>
+                    <TextBlock Text="Database location" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding DatabaseLocation}" />
+                </StackPanel>
+            </Border>
             <WrapPanel><Button Content="_Hide to tray" Click="HideToTray" /></WrapPanel>
             <TextBlock Text="Monitoring and an armed timer continue while hidden, subject to automatic holds. Open EyeCare4U from its tray icon to restore this window. Closing the window exits the app." Foreground="#425E56" />
             <TextBlock Text="Reminders support break habits and do not provide medical advice. These timings are not treatment or a medically optimal schedule." Foreground="#425E56" Margin="0,20,0,8" />
-            <TextBlock Text="Milestone 4 · Breaks and reminders" FontSize="13" Foreground="#425E56" Margin="0,8,0,8" />
+            <TextBlock Text="Milestone 5 · Local preferences and history" FontSize="13" Foreground="#425E56" Margin="0,8,0,8" />
         </StackPanel>
     </ScrollViewer>
 </Window>

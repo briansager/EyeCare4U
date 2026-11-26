@@ -2,9 +2,11 @@
   <Folder Name="/src/">
     <Project Path="src/EyeCare4U.App/EyeCare4U.App.csproj" />
     <Project Path="src/EyeCare4U.Core/EyeCare4U.Core.csproj" />
+    <Project Path="src/EyeCare4U.Storage/EyeCare4U.Storage.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/EyeCare4U.App.Tests/EyeCare4U.App.Tests.csproj" />
     <Project Path="tests/EyeCare4U.Core.Tests/EyeCare4U.Core.Tests.csproj" />
+    <Project Path="tests/EyeCare4U.Storage.Tests/EyeCare4U.Storage.Tests.csproj" />
   </Folder>
 </Solution>
