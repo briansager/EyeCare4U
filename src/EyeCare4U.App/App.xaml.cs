@@ -14,6 +14,7 @@ public partial class App : System.Windows.Application
     private MainWindowViewModel? _viewModel;
     private WindowsActivitySource? _activitySource;
     private ActivitySession? _session;
+    private ReminderExperience? _experience;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -32,6 +33,8 @@ public partial class App : System.Windows.Application
             if (window.WindowState == WindowState.Minimized) window.WindowState = WindowState.Normal;
             window.Activate();
         }, Shutdown);
+        _experience = new ReminderExperience(_session, _tray.Notifications, new WindowsReminderSounds());
+        _viewModel.AttachExperience(_experience);
         _displayRefresh = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromSeconds(1) };
         _displayRefresh.Tick += RefreshDisplay;
         _displayRefresh.Start();
@@ -60,6 +63,7 @@ public partial class App : System.Windows.Application
             _displayRefresh.Stop();
             _displayRefresh.Tick -= RefreshDisplay;
         }
+        _experience?.Dispose();
         if (_activitySource is not null)
         {
             _activitySource.Signal -= OnSessionSignal;

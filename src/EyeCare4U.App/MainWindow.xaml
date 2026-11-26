@@ -25,16 +25,26 @@
                     <TextBlock Text="{Binding StateName}" FontSize="14" Foreground="#425E56" />
                     <TextBlock x:Name="StatusText" Text="{Binding Status}" AutomationProperties.LiveSetting="Polite"
                                FontSize="23" FontWeight="SemiBold" Margin="0,6,0,6" />
-                    <TextBlock x:Name="CountdownLabel" Text="Remaining interval time" Foreground="#425E56" />
+                    <TextBlock x:Name="CountdownLabel" Text="{Binding CountdownLabel}" Foreground="#425E56" />
                     <TextBlock Text="{Binding RemainingText}" FontSize="40" FontWeight="SemiBold"
-                               AutomationProperties.Name="{Binding RemainingText, StringFormat=Remaining interval time: {0}}" AutomationProperties.LiveSetting="Off" />
+                               AutomationProperties.Name="{Binding RemainingText, StringFormat=Remaining countdown time: {0}}" AutomationProperties.LiveSetting="Off" />
                     <WrapPanel Margin="0,12,0,0">
                         <Button Content="_Start" Command="{Binding StartCommand}" />
                         <Button Content="_Pause" Command="{Binding PauseCommand}" />
                         <Button Content="_Resume" Command="{Binding ResumeCommand}" />
                         <Button Content="R_eset" Command="{Binding ResetCommand}" />
                     </WrapPanel>
-                    <TextBlock Text="When a break is due, Reset returns to Ready. Start begins the next interval only when you choose." Foreground="#425E56" />
+                    <TextBlock Text="{Binding BreakGuidance}" Style="{StaticResource OptionalText}" FontSize="20" FontWeight="SemiBold" Margin="0,8,0,8" />
+                    <WrapPanel>
+                        <Button Content="Start eye _break" Command="{Binding StartBreakCommand}" />
+                        <Button Content="Ca_ncel break" Command="{Binding CancelBreakCommand}" />
+                    </WrapPanel>
+                    <Label Target="{Binding ElementName=SnoozeSelector}" Padding="0,4"><AccessText Text="Snoo_ze minutes" TextWrapping="Wrap" /></Label>
+                    <ComboBox x:Name="SnoozeSelector" ItemsSource="{Binding SnoozeOptions}" SelectedItem="{Binding SelectedSnooze}" IsEnabled="{Binding CanSnooze}" Padding="8" AutomationProperties.Name="Snooze minutes" />
+                    <WrapPanel Margin="0,8,0,0"><Button Content="Sno_oze" Command="{Binding SnoozeCommand}" /></WrapPanel>
+                    <TextBlock x:Name="ExperienceResultText" Text="{Binding ExperienceResult}" Style="{StaticResource OptionalText}" AutomationProperties.LiveSetting="Polite" />
+                    <TextBlock x:Name="DeliveryNoteText" Text="{Binding DeliveryNote}" Style="{StaticResource OptionalText}" AutomationProperties.LiveSetting="Polite" />
+                    <TextBlock Text="Reset abandons the current cycle and returns to Ready. Start begins the next interval only when you choose." Foreground="#425E56" />
                 </StackPanel>
             </Border>
             <Border Background="#E3EEE8" CornerRadius="10" Padding="16" Margin="0,20,0,0">
@@ -71,11 +81,15 @@
                          AutomationProperties.Name="Custom whole minutes, 1 through 240" AutomationProperties.ItemStatus="{Binding ValidationError}" AutomationProperties.HelpText="Enter a whole number from 1 through 240. Settings last for this session." />
             </StackPanel>
             <TextBlock Style="{StaticResource OptionalText}" x:Name="ValidationText" AutomationProperties.LiveSetting="Polite" Text="{Binding ValidationError}" Foreground="#9D2525" Margin="0,8,0,0" />
-            <TextBlock Text="Future break feature: 20-second break. The break countdown is not implemented." Margin="0,16,0,12" />
+            <TextBlock Text="Reminder options — session only" FontSize="21" FontWeight="SemiBold" Margin="0,16,0,8" />
+            <CheckBox AutomationProperties.Name="System notifications" IsChecked="{Binding NotificationsEnabled}" Margin="0,4"><AccessText Text="S_ystem notifications" TextWrapping="Wrap" /></CheckBox>
+            <CheckBox AutomationProperties.Name="Reminder sound" IsChecked="{Binding ReminderSoundEnabled}" Margin="0,4"><AccessText Text="Remin_der sound" TextWrapping="Wrap" /></CheckBox>
+            <CheckBox AutomationProperties.Name="Break start and end sounds" IsChecked="{Binding BreakSoundsEnabled}" Margin="0,4"><AccessText Text="Break start/end so_unds" TextWrapping="Wrap" /></CheckBox>
+            <TextBlock Text="An optional end sound lets you look away without watching the countdown. A finished timer does not verify eye rest. Windows may suppress notifications during Do Not Disturb or fullscreen use; reminders stay available here and in the tray." Margin="0,8,0,12" />
             <WrapPanel><Button Content="_Hide to tray" Click="HideToTray" /></WrapPanel>
             <TextBlock Text="Monitoring and an armed timer continue while hidden, subject to automatic holds. Open EyeCare4U from its tray icon to restore this window. Closing the window exits the app." Foreground="#425E56" />
             <TextBlock Text="Reminders support break habits and do not provide medical advice. These timings are not treatment or a medically optimal schedule." Foreground="#425E56" Margin="0,20,0,8" />
-            <TextBlock Text="Milestone 3 · Estimated usage and automatic holds" FontSize="13" Foreground="#425E56" Margin="0,8,0,8" />
+            <TextBlock Text="Milestone 4 · Breaks and reminders" FontSize="13" Foreground="#425E56" Margin="0,8,0,8" />
         </StackPanel>
     </ScrollViewer>
 </Window>

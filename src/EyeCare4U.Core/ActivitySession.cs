@@ -32,6 +32,8 @@ public sealed class ActivitySession
     }
 
     public ReminderTimer Timer { get; }
+    public ReminderTimer CreateActivityTimer() => new(_activeClock);
+    public long ReliabilityVersion { get; private set; }
     public int IdleThresholdSeconds { get; private set; } = 120;
     public TimeSpan EstimatedActiveTime => TimeSpan.FromTicks(_activeClock.Ticks);
     public ActivityStatus Status { get; private set; } = ActivityStatus.Unavailable;
@@ -67,6 +69,7 @@ public sealed class ActivitySession
             ResumeNotice = "Resume handled: fresh activity and timing baselines; sleep time excluded.";
         }
         else Status = ActivityStatus.Unavailable;
+        ReliabilityVersion++;
         // Discard the unresolved boundary interval; never credit time across lifecycle events.
         _previous = null;
     }
@@ -115,6 +118,7 @@ public sealed class ActivitySession
                 _activeClock.Ticks += credited.Ticks;
             }
         }
+        if (_previous is { } last && last.Locked != reading.Locked) ReliabilityVersion++;
         _previous = reading;
         _previousTimestamp = now;
         _resumePending = false;
@@ -126,6 +130,7 @@ public sealed class ActivitySession
 
     private void Unavailable(string reason)
     {
+        ReliabilityVersion++;
         _previous = null;
         Status = ActivityStatus.Unavailable;
         MonitoringNote = reason;

@@ -2,7 +2,7 @@
 
 A Windows desktop portfolio project for configurable eye-break reminders during work or gaming.
 
-**Current status: Milestone 3.** The app has a reminder countdown, system tray integration, session-only estimated active PC time, and automatic holds for detected idle, lock, suspend, and monitoring uncertainty. It launches Ready, without automatically starting a reminder. The planned 20-second break is still a future feature. No camera, AI, database, persistent settings/history, autostart, per-app tracking, notifications, sound, overlays, or telemetry are implemented.
+**Current status: Milestone 4.** The app includes explicit 20-second breaks, 1/5/10-minute active-time snooze, once-per-occurrence Windows reminders, and opt-in sounds, alongside the existing countdown, tray, estimated activity, and automatic holds. It launches Ready without starting an interval. No forced overlay, camera, AI, database, persistent settings/history, autostart, per-app tracking, game detection, or telemetry is implemented.
 
 ## Technology and structure
 
@@ -15,7 +15,7 @@ C#, .NET 10 LTS, WPF/XAML, and straightforward MVVM. No MVVM framework or servic
 - `.github/workflows/build.yml`: Windows restore, Release build, and full tests. Check the corresponding GitHub Actions run independently of local results.
 - `Assets/EyeCare4U.ico` in App: original application-owned eye icon, drawn locally with no downloaded branding.
 
-No new NuGet dependency was introduced for Milestone 3. Windows Forms is a built-in Windows Desktop framework reference; Windows monitoring uses native APIs. Test dependencies remain xunit 2.9.3, Microsoft.NET.Test.Sdk 17.14.1, and xunit.runner.visualstudio 3.1.4.
+No new NuGet dependency was introduced for Milestones 3–4. Windows Forms is a built-in Windows Desktop framework reference; Windows monitoring, silent shell balloons, and optional local sound playback use small native adapters. ReminderExperience in Core coordinates break/snooze state and fakeable notification/sound interfaces. Test dependencies remain xunit 2.9.3, Microsoft.NET.Test.Sdk 17.14.1, and xunit.runner.visualstudio 3.1.4.
 
 ## Prerequisites and commands
 
@@ -36,9 +36,9 @@ Restore can require NuGet access. Building the whole solution and running the Ap
 
 ## Estimated activity: exact policy
 
-“Estimated active PC time — this session” begins at the first reliable launch sample and ends when the app exits. It continues independently of Ready, Running, Paused, or Due. Totals and settings are not saved. Reopening the same hidden window does not begin a new session.
+“Estimated active PC time — this session” begins at the first reliable launch sample and ends when the app exits. It continues independently of Ready, Running, Paused, Due, snooze, or break state. Starting or finishing a break never rewrites usage totals or establishes actual eye rest. Totals and settings are not saved. Reopening the same hidden window does not begin a new session.
 
-The input-idle threshold defaults to **120 seconds**. In Ready, enter a whole number from **30 through 900 seconds**. Whitespace is accepted; signs, fractions, overflow, and out-of-range values are rejected. Invalid text stays visible with an accessible error and the last applied threshold displayed; Start is disabled until corrected. Monitoring continues under the explicitly displayed applied setting. Valid changes settle the old policy, preserve accumulated totals, and establish a fresh baseline under the new policy. They never recalculate history. No threshold changes are allowed while Running (including held), Paused, or Due.
+The input-idle threshold defaults to **120 seconds**. In Ready, enter a whole number from **30 through 900 seconds**. Whitespace is accepted; signs, fractions, overflow, and out-of-range values are rejected. Invalid text stays visible with an accessible error and the last applied threshold displayed; Start is disabled until corrected. Monitoring continues under the explicitly displayed applied setting. Valid changes settle the old policy, preserve accumulated totals, and establish a fresh baseline under the new policy. They never recalculate history. No threshold changes are allowed while Running (including held), Paused, Due, snoozing, or running a break.
 
 The pre-threshold grace period counts as estimated activity. With two reliable samples no more than five seconds apart, only the portion before the known idle cutoff is credited. For example, at 119.5 seconds idle with a 120-second threshold, a one-second sample credits 0.5 seconds. If new input arrives after a cutoff, only the union of the previous grace window and the window beginning at the latest input is credited. Input occurring earlier within the polling interval cannot be reconstructed; conservative undercounting is possible. The previous sample being active never justifies crediting the whole interval. Repeated samples cannot count time twice.
 
@@ -67,19 +67,43 @@ The fallback intentionally undercounts around failures, long UI stalls, and life
 | Paused | Resume; Reset | “Paused by you”; automatic recovery cannot resume it |
 | Due | Reset | Zero; “Time for an eye break”; no automatic restart |
 
-Choose 20, 30, 60, or a custom 1–240 whole-minute interval in Ready. Invalid interval input remains visible, displays `--:--`, and disables Start. Reset restores the full selected interval, returns Ready, and clears running intent. From Due, Reset and then Start are explicit user actions. Repeated invalid state commands do not restart the timer. Displayed seconds round upward so 00:00 does not appear before the credited-activity deadline.
+Choose 20, 30, 60, or a custom 1–240 whole-minute interval in Ready. Invalid interval input remains visible, displays `--:--`, and disables Start. Reset restores the full selected interval, returns Ready, and clears running intent. From Due, Start eye break, Snooze, and Reset are explicit actions. Finishing a break also returns Ready, but the next normal Start remains explicit. Repeated invalid state commands do not restart the timer. Displayed seconds round upward so 00:00 does not appear before the credited-activity deadline.
 
 Automatic blockers freeze the reminder's credited-activity clock; they do not impersonate a manual Pause. Running while held means **armed and waiting**, not consuming. Start/Resume while blocked is allowed and displays why it is waiting. Counting continues automatically only after all blockers clear while the user still intends Running. Unlocking while still idle cannot resume consumption; waking cannot override manual Pause. Inactivity never resets the interval or marks a break completed. Due remains Due through monitoring changes.
 
 Core ReminderTimer still accepts injected time and is independently tested. In the application its time source is the ActivitySession clock, which advances only by conservatively credited activity; Windows APIs stay outside Core.
 
+## Breaks, snooze, and once-only reminders
+
+A reminder reaches Due after its configured estimated-active interval. It stays Due until Start eye break, Snooze, or Reset. It never automatically opens/raises a window, minimizes another app, blocks input, or starts a break. Notification dismissal/timeout changes no state. An explicit notification click may restore the existing window.
+
+Each new Due occurrence has one eligible alert opportunity. Notifications are enabled by default; reminder sound and break start/end sounds are disabled by default. These options are session-only. Alerts wait until monitoring reports Active; idle, lock, suspend, failure, and uncertain gaps defer them. On eligibility, enabled effects are attempted once, including if the API fails or Windows suppresses display. There are no retry storms on restore, input changes, or recovery. Settings at the first eligible opportunity apply to that occurrence; enabling an option later does not replay it. Disabling notifications clears the outstanding request; disabling a sound option stops app-owned sound playback.
+
+**Start eye break** is available from Due when monitoring is reliable and unlocked/awake (Active or input-idle). It begins a separate monotonic **20-second** timer and shows “Look away from the screen at something about 6 metres away.” An optional end sound lets the user look away without watching the display. The normal interval stays stopped at Due. Input inactivity alone does not pause or complete the break, and the break can run while the window is hidden.
+
+At a reliably observed 20 seconds, the result is exactly **“Break timer finished.”** The normal reminder returns Ready at its full selected interval and requires explicit Start. This says only that a timer finished; gaze, distance, attention, eye rest, and health benefits are not verified. The independent input-based usage estimate can still grow during the break.
+
+**Cancel break** returns to the same Due occurrence with a cancellation message, without completion or a replacement alert. Lock, suspend, monitoring failure/reliability changes, negative elapsed time, or a gap over five seconds conservatively interrupts a running break and returns to Due with a reason. This is checked before completion, so a delayed wake cannot count as a finished break. The reason remains visible when the session becomes available. Cancellation/interruption does not generate another notification for that occurrence. A pending, unattempted alert is consumed when the user explicitly starts a break.
+
+**Snooze** is offered only from Due, with choices **1, 5, or 10 minutes**, default **5**. Its label and remaining time explicitly identify snooze. It consumes estimated active time under the existing idle/lock/sleep/unavailable holds, not wall-clock time. Pause/Resume work on snooze; manual pause survives automatic recovery, and Resume while blocked arms without consuming time. It does not count the normal interval in parallel or mark a break completed. Expiration returns Due once and creates one new eligible alert opportunity. There is no snooze action during a break or an already running/paused snooze.
+
+**Reset** explicitly abandons a normal interval, Due reminder, break, or snooze, clears the result, stops owned sound/removes pending notification requests, restores the full selected normal interval, and returns Ready. Core uses synchronous polling rather than scheduled completion callbacks; obsolete countdowns cannot later complete or recreate alerts. Shutdown makes polling/actions inert and disposes owned delivery resources. API failures are contained with a status note; state remains available in window/tray.
+
+### Windows delivery and gaming limits
+
+The existing application-owned icon and Windows Forms tray menu are retained. A small shell adapter manages the icon/balloon using Shell_NotifyIcon so balloon requests can explicitly include **NIIF_NOSOUND**, **NIIF_RESPECT_QUIET_TIME**, and **NIF_REALTIME**. This avoids a default balloon sound when sound is off and discards a request instead of queueing a stale alert. If native icon initialization fails, the built-in NotifyIcon preserves basic tray access; silent balloon delivery is reported unavailable instead of falling back to a noisy notification.
+
+Optional sounds use built-in Windows sound-scheme aliases through asynchronous PlaySound. Each new cue stops/replaces prior app-owned playback; nothing is downloaded, queued, or looped. Playback follows the Windows sound scheme/audio volume and may be inaudible. Optional application sounds are independent of a suppressed balloon and may not be muted by Do Not Disturb; keep them off when silence is wanted. The application does not change or bypass OS notification settings.
+
+Windows may suppress balloons in Do Not Disturb, quiet time, or fullscreen use. An API success is only a request, not evidence that the notification appeared or was read. Reminders remain available in the main window and tray. There is no automatic game detection, process injection, anti-cheat interaction, input interception, forced overlay, or fullscreen takeover. Exclusive-fullscreen compatibility is **not verified**.
+
 ## Window, tray, and accessibility
 
-Hide to tray keeps monitoring and an armed reminder alive, subject to automatic holds. The existing window is restored by tray Open or double-click. The shared tray menu provides status, estimated usage, Open, Start/Resume, Pause, Reset, and Exit. Tooltips are capped at 63 characters. Only a user Open request activates the window; Due does not force focus.
+Hide to tray keeps monitoring and an armed reminder alive, subject to automatic holds. The existing window is restored by tray Open or double-click. The shared tray menu provides status, estimated usage, Open, Start/Resume, Pause, Start eye break, Cancel break, Snooze 1/5/10, Reset, and Exit. Start/Resume and Pause operate on the active normal or snooze timer; they are disabled during a break. Tooltips are capped at 63 characters. Only a user Open request activates the window; Due does not force focus.
 
 Main-window Close exits the app. Shutdown stops/detaches polling, unsubscribes native hooks, unregisters session/power notifications before window destruction, and disposes tray resources. No hooks or polling remain after exit.
 
-Controls support Tab/Shift+Tab, scrolling, and access keys: Alt+S Start, Alt+P Pause, Alt+R Resume, Alt+E Reset, Alt+M interval, Alt+C custom minutes, Alt+H Hide, and Alt+T idle threshold. Labels/settings have accessible names and visible validation. Status/error changes are polite live regions; countdown and estimated-time values are not live regions. No announcements are deliberately emitted every second. Minimum window size is 360 × 360; content scrolls and controls/labels wrap. Actual Windows scaling and screen-reader behavior remain unverified.
+Controls support Tab/Shift+Tab, scrolling, and access keys: Alt+S Start, Alt+P Pause, Alt+R Resume, Alt+E Reset, Alt+M interval, Alt+C custom minutes, Alt+H Hide, Alt+T idle threshold, Alt+B Start eye break, Alt+N Cancel break, Alt+Z snooze choice, Alt+O Snooze, Alt+Y notifications, Alt+D reminder sound, and Alt+U break sounds. Labels/settings have accessible names and visible validation. Status/error changes are polite live regions; countdown and estimated-time values are not live regions. No announcements are deliberately emitted every second. Minimum window size is 360 × 360; content scrolls and controls/labels wrap. Actual Windows scaling and screen-reader behavior remain unverified.
 
 ## Practical manual review
 
@@ -92,21 +116,23 @@ Controls support Tab/Shift+Tab, scrolling, and access keys: Alt+S Start, Alt+P P
 7. Exercise tray commands against the visible window. Hide during a run, wait, restore, and verify the same session/window and policy-aware countdown. Repeat Open/double-click, Close, and tray Exit (including Exit while hidden); visually check icon removal.
 8. Check the new section at minimum window size, actual increased Windows text/display scaling, keyboard-only operation, and a screen reader. An owner-controlled delayed UI/debugger pause can exercise the five-second gap fallback; do not interpret that simulation as sleep verification.
 
-Preserved Milestone 2 outstanding checks: direct tray synchronization; hidden countdown/restoration; tray Exit and visual icon removal; actual Windows scaling; screen-reader behavior. See [Milestone 3 review](docs/MILESTONE-3-REVIEW.md) for current automated/manual evidence, limitations, and publication details. Hosted CI must be checked on the actual pushed commit.
+Preserved Milestone 2 outstanding checks: direct tray synchronization; hidden countdown/restoration; tray Exit and visual icon removal; actual Windows scaling; screen-reader behavior. See [Milestone 4 review](docs/MILESTONE-4-REVIEW.md) for current evidence and the additional break/snooze owner checklist; prior review records remain historical. Hosted CI must be checked on the actual pushed commit.
+
+For Milestone 4 review, keep Custom = 1 and the idle threshold at 120 initially. Let the interval reach Due with another app active; confirm no focus change and at most one notification. Dismiss the notification and check Due remains. Start a break, leave input untouched for 20 seconds, and verify “Break timer finished” / Ready / full interval without auto-start. On later cycles, cancel a break, try each snooze choice, pause/resume snooze, and Reset from both modes. Opt into sounds explicitly to check start/end/reminder cues. Repeat hidden through tray controls and owner-controlled lock/sleep/failure scenarios. DND/fullscreen, actual sounds, direct tray interaction, lock/sleep, OS scaling, and screen-reader checks require actual platform verification, not just tests.
 
 ## Seven-milestone roadmap
 
 1. Desktop foundation — implemented.
 2. Timer and system tray — implemented; outstanding manual checks preserved.
 3. Session-only estimated usage and idle/lock/sleep-aware timing — implemented; platform checks distinguished from deterministic tests.
-4. Fuller reminders — future: 20-second break, notifications, sounds/overlays with user control and accessibility.
+4. Break experience and reminders — implemented: explicit 20-second breaks, active-time snooze, nonintrusive notifications, optional sounds. No overlay or game detection.
 5. Local persistence/preferences — future: SQLite, minimal history, retention/deletion, optional autostart.
 6. Release readiness/evidence — future: packaging, reliability/accessibility, carefully sourced research, owner-selected license.
 7. Optional computer vision — future only: explicit opt-in, local processing, consent, and documented limits. No camera or AI scaffolding before this milestone.
 
 ## Evidence, privacy, and API references
 
-The 20-minute default and planned 20-second break are configurable reminders, not medical treatment or a medically optimal schedule. Break-timing recommendations and research evidence will be documented carefully in a later milestone; this app makes no medical-effectiveness claim.
+The 20-minute default and 20-second break timer are configurable reminders, not medical treatment or a medically optimal schedule. Break-timing recommendations and research evidence will be documented carefully in a later milestone; this app makes no medical-effectiveness claim.
 
 **Implemented:** local session-only input-age/lock/power processing and an accumulated duration. No keystrokes, mouse coordinates, screenshots, foreground titles, process inventories, or browsing history are recorded. Session-query buffers are freed immediately; only connection/lock flags are read into managed code. Nothing is persisted or sent as application telemetry. Development tools/GitHub Actions have their own network behavior. No camera features existed in Milestones 1–2 or exist now.
 
@@ -119,4 +145,6 @@ Microsoft documentation consulted for the adapter and conservative policy:
 - [WTS session query](https://learn.microsoft.com/en-us/windows/win32/api/wtsapi32/nf-wtsapi32-wtsquerysessioninformationw), [extended session flags](https://learn.microsoft.com/en-us/windows/win32/api/wtsapi32/ns-wtsapi32-wtsinfoex_level1_w), and [session notification registration](https://learn.microsoft.com/en-us/windows/win32/api/wtsapi32/nf-wtsapi32-wtsregistersessionnotification). Modern supported Windows flag meanings are used, not Windows 7's reversed flags.
 - [Power notification registration](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-registersuspendresumenotification), [power messages](https://learn.microsoft.com/en-us/windows/win32/power/wm-powerbroadcast), and [automatic resume limitations](https://learn.microsoft.com/en-us/windows/win32/power/pbt-apmresumeautomatic).
 
-No release/license is selected. The owner will choose a license before public release. Standing milestone commit/push authorization and safety/review requirements are recorded in AGENTS.md. No work beyond Milestone 3 is included.
+No release/license is selected. The owner will choose a license before public release. Standing milestone commit/push authorization and safety/review requirements are recorded in AGENTS.md. No work beyond Milestone 4 is included.
+
+Additional Microsoft delivery references: [NOTIFYICONDATA](https://learn.microsoft.com/en-us/windows/win32/api/shellapi/ns-shellapi-notifyicondataw) and [PlaySound](https://learn.microsoft.com/en-us/previous-versions/dd743680(v=vs.85)).

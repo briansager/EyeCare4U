@@ -9,7 +9,7 @@ namespace EyeCare4U.App.Platform;
 public sealed class TrayIcon : IDisposable
 {
     private readonly MainWindowViewModel _viewModel;
-    private readonly Forms.NotifyIcon _icon;
+    private readonly ShellTrayIcon _icon;
     private readonly System.Drawing.Icon _image;
     private readonly Forms.ContextMenuStrip _menu = new();
     private readonly Forms.ToolStripMenuItem _status;
@@ -19,6 +19,9 @@ public sealed class TrayIcon : IDisposable
     private readonly Forms.ToolStripMenuItem _pause;
     private readonly Forms.ToolStripMenuItem _reset;
     private bool _disposed;
+    private readonly Forms.ToolStripMenuItem _breakStart;
+    private readonly Forms.ToolStripMenuItem _breakCancel;
+    private readonly Forms.ToolStripMenuItem _snooze;
 
     public TrayIcon(MainWindowViewModel viewModel, Action open, Action exit)
     {
@@ -34,16 +37,23 @@ public sealed class TrayIcon : IDisposable
         _menu.Items.Add(new Forms.ToolStripSeparator());
         _menu.Items.Add("&Open EyeCare4U", null, (_, _) => open());
         _start = new Forms.ToolStripMenuItem("&Start", null, (_, _) => Execute(
-            _viewModel.State == TimerState.Paused ? _viewModel.ResumeCommand : _viewModel.StartCommand));
+            _viewModel.ResumeCommand.CanExecute(null) ? _viewModel.ResumeCommand : _viewModel.StartCommand));
         _pause = new Forms.ToolStripMenuItem("&Pause", null, (_, _) => Execute(_viewModel.PauseCommand));
         _reset = new Forms.ToolStripMenuItem("&Reset", null, (_, _) => Execute(_viewModel.ResetCommand));
-        _menu.Items.AddRange([_start, _pause, _reset, new Forms.ToolStripSeparator()]);
+        _breakStart = new Forms.ToolStripMenuItem("Start eye &break", null, (_, _) => Execute(_viewModel.StartBreakCommand));
+        _breakCancel = new Forms.ToolStripMenuItem("&Cancel break", null, (_, _) => Execute(_viewModel.CancelBreakCommand));
+        _snooze = new Forms.ToolStripMenuItem("S&nooze");
+        foreach (var minutes in new[] { 1, 5, 10 })
+            _snooze.DropDownItems.Add($"{minutes} minute{(minutes == 1 ? "" : "s")}", null, (_, _) =>
+            { _viewModel.SelectedSnooze = minutes; Execute(_viewModel.SnoozeCommand); });
+        _menu.Items.AddRange([_start, _pause, _breakStart, _breakCancel, _snooze, _reset, new Forms.ToolStripSeparator()]);
         _menu.Items.Add("E&xit", null, (_, _) => exit());
         _menu.Opening += OnOpening;
-        _icon = new Forms.NotifyIcon { Icon = _image, ContextMenuStrip = _menu, Visible = true };
-        _icon.DoubleClick += (_, _) => open();
+        _icon = new ShellTrayIcon(new System.Windows.Interop.WindowInteropHelper(System.Windows.Application.Current.MainWindow).Handle, _image, _menu, open);
         Refresh();
     }
+
+    public IReminderNotifications Notifications => _icon;
 
     private void OnOpening(object? sender, System.ComponentModel.CancelEventArgs e)
     {
@@ -65,17 +75,19 @@ public sealed class TrayIcon : IDisposable
         _icon.Text = tooltip.Length <= 63 ? tooltip : tooltip[..60] + "...";
         _monitoring.Text = _viewModel.ActivityStatusText;
         _usage.Text = $"Estimated active PC time: {_viewModel.EstimatedTimeText}";
-        _start.Text = _viewModel.State == TimerState.Paused ? "&Resume" : "&Start";
-        _start.Enabled = (_viewModel.State == TimerState.Paused ? _viewModel.ResumeCommand : _viewModel.StartCommand).CanExecute(null);
+        _start.Text = _viewModel.ResumeCommand.CanExecute(null) ? "&Resume" : "&Start";
+        _start.Enabled = (_viewModel.ResumeCommand.CanExecute(null) ? _viewModel.ResumeCommand : _viewModel.StartCommand).CanExecute(null);
         _pause.Enabled = _viewModel.PauseCommand.CanExecute(null);
         _reset.Enabled = _viewModel.ResetCommand.CanExecute(null);
+        _breakStart.Enabled = _viewModel.StartBreakCommand.CanExecute(null);
+        _breakCancel.Enabled = _viewModel.CancelBreakCommand.CanExecute(null);
+        _snooze.Enabled = _viewModel.SnoozeCommand.CanExecute(null);
     }
 
     public void Dispose()
     {
         if (_disposed) return;
         _disposed = true;
-        _icon.Visible = false;
         _icon.Dispose();
         _menu.Opening -= OnOpening;
         _menu.Dispose();

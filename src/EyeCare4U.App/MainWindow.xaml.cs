@@ -29,6 +29,8 @@ public partial class MainWindow : Window
             nameof(MainWindowViewModel.ValidationError) => ValidationText,
             nameof(MainWindowViewModel.ThresholdValidationError) => ThresholdValidationText,
             nameof(MainWindowViewModel.ActivityStatusText) => ActivityStatusText,
+            nameof(MainWindowViewModel.ExperienceResult) => ExperienceResultText,
+            nameof(MainWindowViewModel.DeliveryNote) => DeliveryNoteText,
             _ => null
         };
         if (element is null) return;
