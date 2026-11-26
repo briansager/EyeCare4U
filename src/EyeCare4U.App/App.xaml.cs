@@ -27,14 +27,26 @@ public partial class App : System.Windows.Application
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
-        try { _instance=new SingleInstanceGuard(); }
-        catch { Shutdown(); return; } // Do not monitor if exclusive ownership cannot be established.
+        try { await StartAsync(e.Args); }
+        catch(Exception)
+        {
+            // No exception messages/paths or activity are written to logs.
+            System.Windows.MessageBox.Show("EyeCare4U could not start safely. Check the launch arguments and extracted application files. No monitoring will continue.",
+                "EyeCare4U startup failed",MessageBoxButton.OK,MessageBoxImage.Error);
+            Cleanup(); Shutdown(1);
+        }
+    }
+    private async Task StartAsync(string[] arguments)
+    {
+        var directory=AppDataLocation.Resolve(arguments);
+        _instance=new SingleInstanceGuard();
         if(!_instance.IsOwner) { Shutdown(); return; }
-        var path=System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"EyeCare4U","history.db");
+        var path=System.IO.Path.Combine(directory,"history.db");
         _collector=new HistoryCollector();
         var service=new HistoryService(new SqliteHistoryStore(path),_collector);
         var preferences=await service.InitializeAsync(); // Worker queue; never SQLite on dispatcher.
         var window=new MainWindow(); MainWindow=window;
+        if(arguments.Length>0) window.Title="EyeCare4U — isolated review";
         _activitySource=new WindowsActivitySource(new WindowInteropHelper(window).EnsureHandle());
         _session=new ActivitySession(_activitySource,idleThresholdSeconds:preferences.IdleThresholdSeconds);
         _viewModel=new MainWindowViewModel(_session); window.DataContext=_viewModel;
@@ -66,7 +78,8 @@ public partial class App : System.Windows.Application
     private void OnTimeMappingChanged() { TimeZoneInfo.ClearCachedData(); _collector?.InvalidateMapping(); }
     private void OnSessionSignal(SessionSignal signal)
     {
-        if(!Dispatcher.CheckAccess()) { Dispatcher.Invoke(()=>OnSessionSignal(signal)); return; }
+        if(!Dispatcher.CheckAccess()) { _ = Dispatcher.InvokeAsync(()=>OnSessionSignal(signal)); return; }
+        if(_closing) return;
         _session!.Handle(signal); _viewModel!.Refresh(); _tray?.Refresh();
         if(!_closing && _history is not null) _ = _history.CheckpointAsync();
     }
@@ -78,13 +91,23 @@ public partial class App : System.Windows.Application
         _viewModel?.Refresh(); // Final accepted sample and lifecycle transitions.
         StopMonitoring();
         if(sender is Window window) window.IsEnabled=false;
-        if(_history is not null)
+        try
         {
-            await _history.WaitForPendingAsync();
-            await _history.CheckpointAsync();
+            if(_history is not null)
+            {
+                await _history.WaitForPendingAsync();
+                await _history.CheckpointAsync();
+                if(_history.Status.Contains("not being saved",StringComparison.OrdinalIgnoreCase))
+                    System.Windows.MessageBox.Show("The final history snapshot could not be saved. Recent activity, events or preference edits may be lost. Existing saved data was preserved.",
+                        "EyeCare4U history unavailable",MessageBoxButton.OK,MessageBoxImage.Warning);
+            }
         }
-        _allowClose=true;
-        MainWindow.Close();
+        catch(Exception)
+        {
+            System.Windows.MessageBox.Show("The final history operation failed. Recent unsaved data may be lost. EyeCare4U will close and stop monitoring.",
+                "EyeCare4U shutdown",MessageBoxButton.OK,MessageBoxImage.Warning);
+        }
+        finally { _allowClose=true; MainWindow.Close(); }
     }
     private void StopMonitoring()
     {

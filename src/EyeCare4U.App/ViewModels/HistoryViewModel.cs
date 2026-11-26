@@ -12,6 +12,7 @@ public sealed class DailyHistoryRow : INotifyPropertyChanged
     public string DateText=>Date.ToString("yyyy-MM-dd",System.Globalization.CultureInfo.InvariantCulture);
     public string ActiveTime { get; private set; }="No recorded data";
     public string Finished { get; private set; }="No recorded data";
+    public override string ToString()=>$"{DateText}. Estimated active time: {ActiveTime}. Break timers finished: {Finished}.";
     public event PropertyChangedEventHandler? PropertyChanged;
     public void Update(DailyHistory value)
     {
@@ -20,7 +21,10 @@ public sealed class DailyHistoryRow : INotifyPropertyChanged
         if(finished!=Finished) { Finished=finished; PropertyChanged?.Invoke(this,new(nameof(Finished))); }
     }
 }
-public sealed record RecentHistoryRow(Guid Id,string When,string Event,string Reason);
+public sealed record RecentHistoryRow(Guid Id,string When,string Event,string Reason)
+{
+    public override string ToString()=>$"{When}. {Event}. {Reason}";
+}
 
 public sealed class HistoryViewModel : INotifyPropertyChanged, IDisposable
 {
@@ -28,26 +32,29 @@ public sealed class HistoryViewModel : INotifyPropertyChanged, IDisposable
     private readonly Func<UserPreferences> _preferences;
     private Task _operation=Task.CompletedTask;
     private bool _disposed;
+    private string? _operationError;
+    private string _lastHealth="";
+    public string Announcement { get; private set; }="";
     public HistoryViewModel(HistoryService service,Func<UserPreferences> preferences,string databasePath)
     {
         _service=service; _preferences=preferences; DatabaseLocation=databasePath;
         RefreshCommand=new(()=>_ = CheckpointAsync(),()=>!IsBusy);
         ClearHistoryCommand=new(()=>{ClearConfirmationVisible=true; Notify();},()=>!IsBusy);
-        CancelClearCommand=new(()=>{ClearConfirmationVisible=false; Notify();},()=>!IsBusy);
-        ConfirmClearCommand=new(()=>{ClearConfirmationVisible=false; _operation=RunAsync(true);},()=>!IsBusy);
+        CancelClearCommand=new(()=>{ClearConfirmationVisible=false; Notify();},()=>!IsBusy && ClearConfirmationVisible);
+        ConfirmClearCommand=new(()=>{ClearConfirmationVisible=false; _operation=RunAsync(true);},()=>!IsBusy && ClearConfirmationVisible);
         _service.Changed+=OnServiceChanged; Update();
     }
     public event PropertyChangedEventHandler? PropertyChanged;
     public ObservableCollection<DailyHistoryRow> Days { get; }=[];
     public ObservableCollection<RecentHistoryRow> Events { get; }=[];
     public string DatabaseLocation { get; }
-    public string Status=>_service.Status;
+    public string Status=>_operationError??_service.Status;
     public bool IsBusy { get; private set; }
     public bool ClearConfirmationVisible { get; private set; }
     public string LoadingText=>IsBusy?"Loading or saving local history…":"";
     public string EmptyText=>_service.Snapshot is null?"Saved history is unavailable. Timing and reminders continue in memory.":
         Days.All(d=>d.ActiveTime=="No recorded data")&&Events.Count==0?"No recorded history yet. Data appears after an accepted observation is checkpointed.":"";
-    public string TodayDate=>_service.Snapshot?.Today.ToString("yyyy-MM-dd")??"Not available";
+    public string TodayDate=>_service.Snapshot?.Today.ToString("yyyy-MM-dd",System.Globalization.CultureInfo.InvariantCulture)??"Not available";
     public string TodayActiveText=>_service.Snapshot is { } s?Duration(s.Days.First(d=>d.Date==s.Today).ActiveTicks):"Not available";
     public string TodayFinishedText=>_service.Snapshot is { } s?s.Days.First(d=>d.Date==s.Today).BreakTimersFinished?.ToString()??"No recorded data":"Not available";
     public string AttributionNote=>_service.Snapshot?.UnattributedTicks is >0?$"Saved accepted time without reliable daily attribution: {Duration(_service.Snapshot.UnattributedTicks)}. Excluded from daily totals.":"";
@@ -64,8 +71,13 @@ public sealed class HistoryViewModel : INotifyPropertyChanged, IDisposable
     }
     private async Task RunAsync(bool clear)
     {
-        IsBusy=true; Notify();
+        IsBusy=true; _operationError=null; Notify();
         try { if(clear) await _service.ClearAsync(); else await _service.CheckpointAsync(_preferences()); }
+        catch(Exception)
+        {
+            // Own the task used by periodic refresh and commands; never leave a fault unobserved.
+            _operationError="History is not being saved. The operation failed; timing continues in memory. Retry Refresh saved history.";
+        }
         finally { IsBusy=false; Update(); }
     }
     private void OnServiceChanged()=>Update();
@@ -88,11 +100,25 @@ public sealed class HistoryViewModel : INotifyPropertyChanged, IDisposable
             for(var i=0;i<snapshot.Events.Count;i++)
             {
                 var value=snapshot.Events[i]; var existing=Events.FirstOrDefault(e=>e.Id==value.Id);
-                if(existing is null) Events.Insert(i,new(value.Id,value.Utc.ToOffset(TimeSpan.FromMinutes(value.OffsetMinutes)).ToString("yyyy-MM-dd HH:mm:ss zzz"),Label(value.Kind),value.Reason));
+                if(existing is null) Events.Insert(i,new(value.Id,value.Utc.ToOffset(TimeSpan.FromMinutes(value.OffsetMinutes)).ToString("yyyy-MM-dd HH:mm:ss zzz",System.Globalization.CultureInfo.InvariantCulture),Label(value.Kind),value.Reason));
                 else if(Events.IndexOf(existing)!=i) Events.Move(Events.IndexOf(existing),i);
             }
         }
         else { Days.Clear(); Events.Clear(); }
+        var health=Status.Contains("not being saved",StringComparison.OrdinalIgnoreCase)?"failed":
+            Status.StartsWith("History cleared",StringComparison.Ordinal)?"cleared":
+            Status.StartsWith("History could not be cleared",StringComparison.Ordinal)?"clear failed":"ready";
+        if(health!=_lastHealth)
+        {
+            var previous=_lastHealth; _lastHealth=health;
+            if(health!="ready" || previous=="failed")
+            {
+                Announcement=health=="failed"?"History is not being saved. Timing continues in memory.":
+                    health=="cleared"?"Saved history cleared. Preferences, current timer and session estimate kept.":
+                    health=="clear failed"?"History could not be cleared. Existing saved history was preserved.":"History saving recovered.";
+                PropertyChanged?.Invoke(this,new(nameof(Announcement)));
+            }
+        }
         Notify();
     }
     public static string Duration(long? ticks)

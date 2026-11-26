@@ -38,3 +38,6 @@ releases/
 *.msixbundle
 *.appx
 *.appxbundle
+
+# Required upstream notice; the database glob must not hide this license.
+!third-party/Microsoft.Data.Sqlite-LICENSE.txt

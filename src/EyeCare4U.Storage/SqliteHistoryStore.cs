@@ -134,9 +134,19 @@ public sealed class SqliteHistoryStore(string databasePath) : IHistoryStore
         var recent=new List<RecordedEvent>();
         using(var cmd=Command(connection,transaction,"SELECT id,occurrence_id,break_id,kind,reason,utc,local_date,offset_minutes,zone_id,sequence FROM events ORDER BY utc DESC,sequence DESC,id LIMIT 50;"))
         using(var reader=cmd.ExecuteReader())
-            while(reader.Read()) recent.Add(new(Guid.Parse(reader.GetString(0)),Guid.Parse(reader.GetString(1)),reader.IsDBNull(2)?null:Guid.Parse(reader.GetString(2)),
-                Enum.Parse<HistoryKind>(reader.GetString(3)),reader.GetString(4),DateTimeOffset.Parse(reader.GetString(5),CultureInfo.InvariantCulture),
-                reader.GetString(6),reader.GetInt32(7),reader.GetString(8),reader.GetInt64(9)));
+            while(reader.Read())
+            {
+                var kind=Enum.Parse<HistoryKind>(reader.GetString(3));
+                var utc=DateTimeOffset.Parse(reader.GetString(5),CultureInfo.InvariantCulture);
+                var offset=reader.GetInt32(7);
+                if(!Enum.IsDefined(kind) || offset is < -840 or > 840)
+                    throw new InvalidDataException("Invalid stored event kind or offset.");
+                // Reject unreadable data here, inside the service's failure boundary, rather than
+                // allowing date formatting in the UI to crash startup. Never rewrite the record.
+                _=utc.ToOffset(TimeSpan.FromMinutes(offset));
+                recent.Add(new(Guid.Parse(reader.GetString(0)),Guid.Parse(reader.GetString(1)),reader.IsDBNull(2)?null:Guid.Parse(reader.GetString(2)),
+                    kind,reader.GetString(4),utc,reader.GetString(6),offset,reader.GetString(8),reader.GetInt64(9)));
+            }
         var unattributed=Convert.ToInt64(Scalar(connection,transaction,"SELECT COALESCE(SUM(active_ticks),0) FROM usage_totals WHERE local_date IS NULL;"),CultureInfo.InvariantCulture);
         transaction.Commit(); return new HistorySnapshot(today,days,recent,unattributed);
     });

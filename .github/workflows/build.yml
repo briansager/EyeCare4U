@@ -1,4 +1,4 @@
-name: Windows build
+name: Windows release candidate
 
 on:
   push:
@@ -16,10 +16,16 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
-      - name: Restore
-        run: dotnet restore EyeCare4U.slnx
-      - name: Build Release
-        run: dotnet build EyeCare4U.slnx --configuration Release --no-restore
-
-      - name: Run all tests including SQLite history
-        run: dotnet test EyeCare4U.slnx --configuration Release --no-build --no-restore
+      - name: Restore, build, test, audit, then package win-x64
+        shell: pwsh
+        run: ./scripts/Package-Portable.ps1
+      - name: Upload owner-review ZIP and checksum
+        uses: actions/upload-artifact@v7
+        with:
+          name: EyeCare4U-0.6.0-rc.1-win-x64
+          path: |
+            artifacts/packages/*.zip
+            artifacts/packages/*.sha256
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0

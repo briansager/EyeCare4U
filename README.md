@@ -2,7 +2,8 @@
 
 A Windows desktop portfolio project for configurable eye-break reminders during work or gaming.
 
-**Current status: Milestone 5.** Local SQLite history and validated preferences now survive restart. The dashboard shows saved activity today, break timers finished, seven calendar days, and up to 50 recent events. Every launch starts Ready with fresh monitoring baselines. Existing timers, tray, breaks, snooze, notifications and optional sounds remain. No autostart, installer, cloud/account, per-app tracking, camera, AI, telemetry, or medical-effectiveness claim is implemented.
+**Current status: Milestone 6 / 0.6.0-rc.1 owner-review candidate.** Targeted reliability/accessibility fixes and a reproducible self-contained Windows x64 ZIP now accompany the existing reminder, tray, break/snooze, local preferences and history. Launch always starts Ready. Public release is blocked by the owner's unselected project license and outstanding Windows qualification; automated passes do not establish notification/audio, fullscreen, power-event or screen-reader behavior. No final release/tag, installer, autostart, cloud/account, per-app surveillance, camera/AI or telemetry is included.
+
 ## Technology and structure
 
 C#, .NET 10 LTS, WPF/XAML, and straightforward MVVM. No MVVM framework or service container.
@@ -34,6 +35,27 @@ dotnet run --project src/EyeCare4U.App/EyeCare4U.App.csproj --configuration Rele
 ```
 
 Restore can require NuGet access. Building the whole solution and running the App tests/UI require Windows; Core is UI-independent.
+
+## Portable release-candidate review
+
+Run `pwsh -NoProfile -File scripts/Package-Portable.ps1` from the repository on Windows with PowerShell 7.2+ and the selected SDK. It performs locked restore, Release build, all tests, a direct/transitive NuGet vulnerability audit, self-contained win-x64 restore/publish, archive/checksum verification and three negative packaging regressions. Failures stop packaging. No trimming, Native AOT, single-file bundling, signing, installer, tag or GitHub Release is used. Version is `0.6.0-rc.1` in Directory.Build.props; runtime packs are pinned to 10.0.15. Committed lock files pin NuGet versions/content hashes for normal and Windows runtime graphs. Dependency versions were retained after official verification, including Microsoft.Data.Sqlite 11.0.0; see [Milestone 6 review](docs/MILESTONE-6-REVIEW.md). xUnit v2 is test-only and marked legacy/security-fixes-only; no known vulnerabilities were reported by the current NuGet sources. An advisory check is not a security guarantee.
+
+Outputs: `artifacts/packages/EyeCare4U-0.6.0-rc.1-win-x64.zip` and adjacent `.zip.sha256`. All generated staging, synthetic package tests and smoke extractions remain under ignored `artifacts/`. The ZIP contains only fresh publish output, owner-review instructions, release notes, notices and a per-file SHA-256 manifest recording SDK/runtime, source commit and dirty-tree status. ZIP timestamps/order are normalized. Regenerate from the same revision, SDK/runtime and locked packages; do not treat a dirty working-tree package as immutable release evidence. Public CI runs the same script and uploads ZIP/checksum as 14-day workflow artifacts after its successful tests; it does not publish a Release.
+
+Supported target for this candidate: supported Windows 11 x64 desktop editions. Local testing is Windows build 26300; consult [Microsoft's .NET 10 OS matrix](https://github.com/dotnet/core/blob/main/release-notes/10.0/supported-os.md) and the local validation matrix for the difference between platform eligibility and actual tests. Other Windows versions, ARM emulation and clean machines without installed .NET remain unqualified. Self-contained means the runtime is bundled; the published process was checked loading its local runtime/native SQLite, but this is not a clean-machine demonstration.
+
+Compare `Get-FileHash -Algorithm SHA256 <zip>` with the checksum, extract the entire ZIP, then open `EyeCare4U/EyeCare4U.App.exe` directly. The unsigned executable may trigger Windows reputation warnings; no protections are bypassed. Read [portable instructions](docs/PORTABLE-README.md) for data location and removal: deleting the extracted folder keeps LocalApplicationData history/preferences; optional data-folder removal after exit removes those too. Clear history keeps preferences and is logical deletion, not secure erasure. There is no automatic Windows startup.
+
+For isolated review, extract into a fresh `artifacts/owner-review` folder, then run:
+
+```powershell
+./scripts/Start-IsolatedReview.ps1 -Executable './artifacts/owner-review/EyeCare4U/EyeCare4U.App.exe'
+# To reopen the SAME isolated history, append -ExistingDirectory '<printed directory>'
+```
+
+The explicit review argument accepts only marked GUID folders under the current user's Temp/EyeCare4U-Review root; the window title says “isolated review”. Normal launches use LocalApplicationData and expose no review controls. Never clear real history to finish qualification. Confirmed Clear is covered end-to-end through view-model commands and populated temporary SQLite, including queue epochs, new collection and restart; live UI opening/Keep/Escape were checked separately. This is not evidence of deletion of the owner's existing production history.
+
+Keyboard additions: Alt+F Refresh saved history, Alt+G Clear history, Alt+V Delete saved history when confirmation is open, Alt+K Keep history. Confirmation focuses Keep; Escape cancels and returns to Clear. Native focus is visibly outlined. High contrast uses system Window/WindowText brushes and responds to changes; actual Windows high-contrast/scaling and screen-reader qualification remain outstanding. Significant storage failure/recovery/clear announcements exclude periodic saved-time changes. No app animations were added. See the [release-candidate checklist](docs/RELEASE-CANDIDATE-CHECKLIST.md), [draft release notes](docs/RELEASE-NOTES-0.6.0-rc.1.md), and [single Windows validation matrix](docs/MILESTONE-6-REVIEW.md#windows-validation-matrix).
 
 ## Estimated activity: exact policy
 
@@ -145,7 +167,7 @@ See [Milestone 5 review](docs/MILESTONE-5-REVIEW.md) for actual validation and t
 3. Session-only estimated usage and idle/lock/sleep-aware timing — implemented; platform checks distinguished from deterministic tests.
 4. Break experience and reminders — implemented: explicit 20-second breaks, active-time snooze, nonintrusive notifications, optional sounds. No overlay or game detection.
 5. Local persistence/preferences — implemented: SQLite history, validated preferences, seven-day summaries, recent events and confirmed logical deletion. No autostart or automatic retention policy.
-6. Release readiness/evidence — future: packaging, reliability/accessibility, carefully sourced research, owner-selected license.
+6. Reliability/accessibility and release candidate — implemented: targeted fixes, locked dependencies, self-contained portable ZIP/checksum/notices, and an honest Windows validation matrix. License selection and owner-machine qualification remain public-release blockers.
 7. Optional computer vision — future only: explicit opt-in, local processing, consent, and documented limits. No camera or AI scaffolding before this milestone.
 
 ## Evidence, privacy, and API references
@@ -163,6 +185,6 @@ Microsoft documentation consulted for the adapter and conservative policy:
 - [WTS session query](https://learn.microsoft.com/en-us/windows/win32/api/wtsapi32/nf-wtsapi32-wtsquerysessioninformationw), [extended session flags](https://learn.microsoft.com/en-us/windows/win32/api/wtsapi32/ns-wtsapi32-wtsinfoex_level1_w), and [session notification registration](https://learn.microsoft.com/en-us/windows/win32/api/wtsapi32/nf-wtsapi32-wtsregistersessionnotification). Modern supported Windows flag meanings are used, not Windows 7's reversed flags.
 - [Power notification registration](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-registersuspendresumenotification), [power messages](https://learn.microsoft.com/en-us/windows/win32/power/wm-powerbroadcast), and [automatic resume limitations](https://learn.microsoft.com/en-us/windows/win32/power/pbt-apmresumeautomatic).
 
-No release/license is selected. The owner will choose a license before public release. Standing milestone commit/push authorization and safety/review requirements are recorded in AGENTS.md. No work beyond Milestone 5 is included.
+No release/license is selected. The owner will choose a license before public release. Standing milestone commit/push authorization and safety/review requirements are recorded in AGENTS.md. No work beyond Milestone 6 is included.
 
 Additional Microsoft delivery references: [NOTIFYICONDATA](https://learn.microsoft.com/en-us/windows/win32/api/shellapi/ns-shellapi-notifyicondataw) and [PlaySound](https://learn.microsoft.com/en-us/previous-versions/dd743680(v=vs.85)).

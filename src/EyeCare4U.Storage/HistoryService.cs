@@ -21,8 +21,14 @@ public sealed class HistoryService(IHistoryStore store,HistoryCollector collecto
         try
         {
             var initialized=await store.InitializeAsync(); _epoch=initialized.Epoch; _initialized=true;
-            Snapshot=await store.QueryAsync(DateOnly.FromDateTime(_time.GetLocalNow().Date));
-            Status="Local history ready. Recent activity and preference edits wait for the next checkpoint.";
+            // History can be unreadable even though preferences were loaded successfully.
+            // Never replace those valid preferences with defaults because a later query failed.
+            try
+            {
+                Snapshot=await store.QueryAsync(DateOnly.FromDateTime(_time.GetLocalNow().Date));
+                Status="Local history ready. Recent activity and preference edits wait for the next checkpoint.";
+            }
+            catch(Exception ex) { Status=Failure(ex); }
             return initialized.Preferences;
         }
         catch(Exception ex) { Status=Failure(ex); return new(); }

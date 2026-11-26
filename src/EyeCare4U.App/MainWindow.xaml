@@ -3,29 +3,55 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="EyeCare4U" Width="860" Height="800" MinWidth="360" MinHeight="360"
         Icon="Assets/EyeCare4U.ico" WindowStartupLocation="CenterScreen"
-        Background="#F3F6F5" FontFamily="Segoe UI" FontSize="16" Foreground="#183C35" UseLayoutRounding="True">
+        Background="{DynamicResource PageBrush}" FontFamily="Segoe UI" FontSize="16" Foreground="{DynamicResource BodyBrush}" UseLayoutRounding="True">
     <Window.Resources>
+        <SolidColorBrush x:Key="PageBrush" Color="#F3F6F5" />
+        <SolidColorBrush x:Key="BodyBrush" Color="#183C35" />
+        <SolidColorBrush x:Key="AccentBrush" Color="#34695C" />
+        <SolidColorBrush x:Key="MutedBrush" Color="#425E56" />
+        <SolidColorBrush x:Key="PanelBrush" Color="White" />
+        <SolidColorBrush x:Key="LineBrush" Color="#C9D9D2" />
+        <SolidColorBrush x:Key="ActivityBrush" Color="#E3EEE8" />
+        <SolidColorBrush x:Key="ErrorBrush" Color="#9D2525" />
+        <SolidColorBrush x:Key="ConfirmBrush" Color="#FFF1DC" />
+        <Style x:Key="KeyboardFocus" TargetType="Control">
+            <Setter Property="Template"><Setter.Value><ControlTemplate>
+                <Rectangle Margin="-2" Stroke="{DynamicResource {x:Static SystemColors.HighlightBrushKey}}" StrokeThickness="2" StrokeDashArray="2,1" SnapsToDevicePixels="True" />
+            </ControlTemplate></Setter.Value></Setter>
+        </Style>
+        <Style TargetType="TextBox"><Setter Property="FocusVisualStyle" Value="{StaticResource KeyboardFocus}" /></Style>
+        <Style TargetType="ComboBox"><Setter Property="FocusVisualStyle" Value="{StaticResource KeyboardFocus}" /></Style>
+        <Style TargetType="CheckBox"><Setter Property="FocusVisualStyle" Value="{StaticResource KeyboardFocus}" /></Style>
+        <Style TargetType="DataGrid">
+            <Setter Property="Background" Value="{DynamicResource PanelBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource BodyBrush}" />
+            <Setter Property="RowBackground" Value="{DynamicResource PanelBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource LineBrush}" />
+            <Setter Property="KeyboardNavigation.TabNavigation" Value="Once" />
+            <Setter Property="CanUserReorderColumns" Value="False" />
+            <Setter Property="CanUserSortColumns" Value="False" />
+        </Style>
         <Style TargetType="TextBlock"><Setter Property="TextWrapping" Value="Wrap" /></Style>
         <Style x:Key="OptionalText" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
             <Style.Triggers><Trigger Property="Text" Value=""><Setter Property="Visibility" Value="Collapsed" /></Trigger></Style.Triggers>
         </Style>
         <Style TargetType="Button">
             <Setter Property="Padding" Value="16,10" /><Setter Property="Margin" Value="0,0,8,8" />
-            <Setter Property="MinHeight" Value="44" />
+            <Setter Property="MinHeight" Value="44" /><Setter Property="FocusVisualStyle" Value="{StaticResource KeyboardFocus}" />
         </Style>
     </Window.Resources>
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
                   Focusable="True" AutomationProperties.Name="EyeCare4U overview">
         <StackPanel MaxWidth="720" Margin="20" HorizontalAlignment="Stretch">
-            <TextBlock Text="EYECARE4U" FontSize="14" FontWeight="Bold" Foreground="#34695C" />
+            <TextBlock Text="EYECARE4U" FontSize="14" FontWeight="Bold" Foreground="{DynamicResource AccentBrush}" />
             <TextBlock Text="Make room for a break." FontSize="30" FontWeight="SemiBold" Margin="0,10,0,10" />
-            <TextBlock Text="A configurable reminder to pause during work or gaming. Elapsed timer time is not measured screen usage." Foreground="#425E56" Margin="0,0,0,20" />
-            <Border Background="White" BorderBrush="#C9D9D2" BorderThickness="1" CornerRadius="12" Padding="16">
+            <TextBlock Text="A configurable reminder to pause during work or gaming. Elapsed timer time is not measured screen usage." Foreground="{DynamicResource MutedBrush}" Margin="0,0,0,20" />
+            <Border Background="{DynamicResource PanelBrush}" BorderBrush="{DynamicResource LineBrush}" BorderThickness="1" CornerRadius="12" Padding="16">
                 <StackPanel>
-                    <TextBlock Text="{Binding StateName}" FontSize="14" Foreground="#425E56" />
+                    <TextBlock Text="{Binding StateName}" FontSize="14" Foreground="{DynamicResource MutedBrush}" />
                     <TextBlock x:Name="StatusText" Text="{Binding Status}" AutomationProperties.LiveSetting="Polite"
                                FontSize="23" FontWeight="SemiBold" Margin="0,6,0,6" />
-                    <TextBlock x:Name="CountdownLabel" Text="{Binding CountdownLabel}" Foreground="#425E56" />
+                    <TextBlock x:Name="CountdownLabel" Text="{Binding CountdownLabel}" Foreground="{DynamicResource MutedBrush}" />
                     <TextBlock Text="{Binding RemainingText}" FontSize="40" FontWeight="SemiBold"
                                AutomationProperties.Name="{Binding RemainingText, StringFormat=Remaining countdown time: {0}}" AutomationProperties.LiveSetting="Off" />
                     <WrapPanel Margin="0,12,0,0">
@@ -44,10 +70,10 @@
                     <WrapPanel Margin="0,8,0,0"><Button Content="Sno_oze" Command="{Binding SnoozeCommand}" /></WrapPanel>
                     <TextBlock x:Name="ExperienceResultText" Text="{Binding ExperienceResult}" Style="{StaticResource OptionalText}" AutomationProperties.LiveSetting="Polite" />
                     <TextBlock x:Name="DeliveryNoteText" Text="{Binding DeliveryNote}" Style="{StaticResource OptionalText}" AutomationProperties.LiveSetting="Polite" />
-                    <TextBlock Text="Reset abandons the current cycle and returns to Ready. Start begins the next interval only when you choose." Foreground="#425E56" />
+                    <TextBlock Text="Reset abandons the current cycle and returns to Ready. Start begins the next interval only when you choose." Foreground="{DynamicResource MutedBrush}" />
                 </StackPanel>
             </Border>
-            <Border Background="#E3EEE8" CornerRadius="10" Padding="16" Margin="0,20,0,0">
+            <Border Background="{DynamicResource ActivityBrush}" CornerRadius="10" Padding="16" Margin="0,20,0,0">
                 <StackPanel>
                     <TextBlock Text="Estimated active PC time — this session." FontSize="20" FontWeight="SemiBold" />
                     <TextBlock Text="{Binding EstimatedTimeText}" FontSize="28" AutomationProperties.LiveSetting="Off"
@@ -61,13 +87,13 @@
                     <TextBox x:Name="IdleThresholdInput" Text="{Binding IdleThresholdText, UpdateSourceTrigger=PropertyChanged}" Padding="8"
                              IsEnabled="{Binding CanEditInterval}" MaxLength="32" AutomationProperties.Name="Input idle threshold in seconds, 30 through 900"
                              AutomationProperties.ItemStatus="{Binding ThresholdValidationError}" AutomationProperties.HelpText="Change only in Ready. Valid changes apply prospectively with a fresh monitoring baseline." />
-                    <TextBlock Style="{StaticResource OptionalText}" x:Name="ThresholdValidationText" Text="{Binding ThresholdValidationError}" Foreground="#9D2525" AutomationProperties.LiveSetting="Polite" Margin="0,6,0,0" />
+                    <TextBlock Style="{StaticResource OptionalText}" x:Name="ThresholdValidationText" Text="{Binding ThresholdValidationError}" Foreground="{DynamicResource ErrorBrush}" AutomationProperties.LiveSetting="Polite" Margin="0,6,0,0" />
                     <TextBlock Text="{Binding AppliedIdleThreshold}" Margin="0,6,0,6" />
                     <TextBlock Text="Input-based estimate, not attention. Reading, video, and controller-only play may look idle. Inactivity does not prove an eye break." />
                 </StackPanel>
             </Border>
             <TextBlock Text="Interval settings" FontSize="21" FontWeight="SemiBold" Margin="0,20,0,6" />
-            <TextBlock Text="Preferences are saved locally at checkpoints. Reset to Ready before changing timing settings." Foreground="#425E56" Margin="0,0,0,8" />
+            <TextBlock Text="Preferences are saved locally at checkpoints. Reset to Ready before changing timing settings." Foreground="{DynamicResource MutedBrush}" Margin="0,0,0,8" />
             <Label Target="{Binding ElementName=IntervalSelector}" Padding="0,4"><AccessText Text="Interval (_minutes)" TextWrapping="Wrap" /></Label>
             <ComboBox x:Name="IntervalSelector" ItemsSource="{Binding IntervalOptions}" SelectedItem="{Binding SelectedInterval}"
                       AutomationProperties.Name="Interval in minutes" IsEnabled="{Binding CanEditInterval}" Padding="8" HorizontalContentAlignment="Stretch" />
@@ -80,13 +106,13 @@
                          IsEnabled="{Binding CanEditInterval}" Padding="8" MaxLength="32"
                          AutomationProperties.Name="Custom whole minutes, 1 through 240" AutomationProperties.ItemStatus="{Binding ValidationError}" AutomationProperties.HelpText="Enter a whole number from 1 through 240. Valid preferences are saved locally at checkpoints." />
             </StackPanel>
-            <TextBlock Style="{StaticResource OptionalText}" x:Name="ValidationText" AutomationProperties.LiveSetting="Polite" Text="{Binding ValidationError}" Foreground="#9D2525" Margin="0,8,0,0" />
+            <TextBlock Style="{StaticResource OptionalText}" x:Name="ValidationText" AutomationProperties.LiveSetting="Polite" Text="{Binding ValidationError}" Foreground="{DynamicResource ErrorBrush}" Margin="0,8,0,0" />
             <TextBlock Text="Reminder options — saved locally" FontSize="21" FontWeight="SemiBold" Margin="0,16,0,8" />
             <CheckBox AutomationProperties.Name="System notifications" IsChecked="{Binding NotificationsEnabled}" Margin="0,4"><AccessText Text="S_ystem notifications" TextWrapping="Wrap" /></CheckBox>
             <CheckBox AutomationProperties.Name="Reminder sound" IsChecked="{Binding ReminderSoundEnabled}" Margin="0,4"><AccessText Text="Remin_der sound" TextWrapping="Wrap" /></CheckBox>
             <CheckBox AutomationProperties.Name="Break start and end sounds" IsChecked="{Binding BreakSoundsEnabled}" Margin="0,4"><AccessText Text="Break start/end so_unds" TextWrapping="Wrap" /></CheckBox>
             <TextBlock Text="An optional end sound lets you look away without watching the countdown. A finished timer does not verify eye rest. Windows may suppress notifications during Do Not Disturb or fullscreen use; reminders stay available here and in the tray." Margin="0,8,0,12" />
-            <Border Background="White" BorderBrush="#C9D9D2" BorderThickness="1" CornerRadius="10" Padding="16" Margin="0,16,0,16" DataContext="{Binding History}">
+            <Border Background="{DynamicResource PanelBrush}" BorderBrush="{DynamicResource LineBrush}" BorderThickness="1" CornerRadius="10" Padding="16" Margin="0,16,0,16" DataContext="{Binding History}">
                 <StackPanel>
                     <TextBlock Text="History — saved on this PC" FontSize="21" FontWeight="SemiBold" />
                     <TextBlock Text="{Binding TodayDate, StringFormat=Recorded local date: {0}}" />
@@ -94,6 +120,7 @@
                     <TextBlock Text="{Binding TodayActiveText}" FontSize="25" AutomationProperties.LiveSetting="Off" />
                     <TextBlock Text="{Binding TodayFinishedText, StringFormat=Break timers finished today: {0}}" />
                     <TextBlock Text="{Binding Status}" Margin="0,8,0,4" />
+                    <TextBlock x:Name="HistoryAnnouncementText" Text="{Binding Announcement}" Style="{StaticResource OptionalText}" AutomationProperties.LiveSetting="Polite" />
                     <TextBlock Text="{Binding LoadingText}" Style="{StaticResource OptionalText}" />
                     <TextBlock Text="{Binding EmptyText}" Style="{StaticResource OptionalText}" />
                     <TextBlock Text="{Binding AttributionNote}" Style="{StaticResource OptionalText}" />
@@ -114,12 +141,12 @@
                         </DataGrid.Columns>
                     </DataGrid>
                     <TextBlock Text="No recorded data differs from an observed zero. Totals cover only observed periods while EyeCare4U ran; missing periods are never filled. Break timers finished does not verify looking away or eye rest." Margin="0,8,0,8" />
-                    <WrapPanel><Button Content="Refresh saved history" Command="{Binding RefreshCommand}" /><Button Content="Clear history…" Command="{Binding ClearHistoryCommand}" /></WrapPanel>
-                    <Border Background="#FFF1DC" Padding="12" Margin="0,8,0,8">
+                    <WrapPanel><Button x:Name="HistoryRefreshButton" Content="Re_fresh saved history" Command="{Binding RefreshCommand}" /><Button x:Name="HistoryClearButton" Content="Clear history (_G)…" Command="{Binding ClearHistoryCommand}" /></WrapPanel>
+                    <Border x:Name="HistoryConfirmation" PreviewKeyDown="OnConfirmationKeyDown" Background="{DynamicResource ConfirmBrush}" Padding="12" Margin="0,8,0,8">
                         <Border.Style><Style TargetType="Border"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding ClearConfirmationVisible}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></Border.Style>
                         <StackPanel>
                             <TextBlock Text="Delete all saved usage and event history? Preferences, the current timer, and the session estimate are kept. New history starts from a fresh boundary. This is not secure erasure." />
-                            <WrapPanel Margin="0,8,0,0"><Button Content="Delete saved history" Command="{Binding ConfirmClearCommand}" /><Button Content="Keep history" Command="{Binding CancelClearCommand}" /></WrapPanel>
+                            <WrapPanel Margin="0,8,0,0"><Button Content="Delete sa_ved history" Command="{Binding ConfirmClearCommand}" /><Button x:Name="KeepHistoryButton" Content="_Keep history" Command="{Binding CancelClearCommand}" /></WrapPanel>
                         </StackPanel>
                     </Border>
                     <TextBlock Text="Database location" FontWeight="SemiBold" />
@@ -127,9 +154,9 @@
                 </StackPanel>
             </Border>
             <WrapPanel><Button Content="_Hide to tray" Click="HideToTray" /></WrapPanel>
-            <TextBlock Text="Monitoring and an armed timer continue while hidden, subject to automatic holds. Open EyeCare4U from its tray icon to restore this window. Closing the window exits the app." Foreground="#425E56" />
-            <TextBlock Text="Reminders support break habits and do not provide medical advice. These timings are not treatment or a medically optimal schedule." Foreground="#425E56" Margin="0,20,0,8" />
-            <TextBlock Text="Milestone 5 · Local preferences and history" FontSize="13" Foreground="#425E56" Margin="0,8,0,8" />
+            <TextBlock Text="Monitoring and an armed timer continue while hidden, subject to automatic holds. Open EyeCare4U from its tray icon to restore this window. Closing the window exits the app." Foreground="{DynamicResource MutedBrush}" />
+            <TextBlock Text="Reminders support break habits and do not provide medical advice. These timings are not treatment or a medically optimal schedule." Foreground="{DynamicResource MutedBrush}" Margin="0,20,0,8" />
+            <TextBlock Text="Milestone 6 · Release candidate 0.6.0-rc.1" FontSize="13" Foreground="{DynamicResource MutedBrush}" Margin="0,8,0,8" />
         </StackPanel>
     </ScrollViewer>
 </Window>

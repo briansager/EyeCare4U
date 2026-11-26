@@ -117,4 +117,22 @@ public sealed class SqliteHistoryStoreTests
         await Assert.ThrowsAsync<SqliteException>(()=>new SqliteHistoryStore(temp.Path).InitializeAsync());
         Assert.Equal(corrupt,await File.ReadAllBytesAsync(temp.Path));
     }
+    [Theory]
+    [InlineData("offset_minutes=900")]
+    [InlineData("kind='999'")]
+    [InlineData("utc='0001-01-01T00:00:00+00:00',offset_minutes=-60")]
+    public async Task MalformedEventCannotEscapeStorageFailureBoundaryOrReplacePreferences(string assignment)
+    {
+        using var temp=new TempDatabase(); var store=new SqliteHistoryStore(temp.Path); await store.InitializeAsync();
+        var preferences=new UserPreferences { SnoozeMinutes=10 };
+        var batch=Batch() with { Events=[new(Guid.NewGuid(),Guid.NewGuid(),null,HistoryKind.ReminderDue,"",Now,"2026-11-26",0,"UTC",1)] };
+        Assert.True(await store.SaveAsync(batch,preferences));
+        temp.Sql("UPDATE events SET "+assignment+";"); // Only fixed synthetic InlineData SQL, never user input.
+        var before=await File.ReadAllBytesAsync(temp.Path);
+        var service=new HistoryService(new SqliteHistoryStore(temp.Path),new HistoryCollector());
+        Assert.Equal(preferences,await service.InitializeAsync());
+        Assert.Null(service.Snapshot); Assert.Contains("not being saved",service.Status);
+        Assert.Equal(before,await File.ReadAllBytesAsync(temp.Path));
+    }
+
 }

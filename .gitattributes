@@ -1,0 +1,4 @@
+# Stable checkout text for portable packaging; binary and upstream notice bytes are preserved.
+* text=auto eol=lf
+*.ico -text
+third-party/** -text whitespace=-blank-at-eol,-blank-at-eof

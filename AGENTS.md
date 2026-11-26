@@ -17,3 +17,6 @@
 - Do not add a license before the owner chooses one.
 
 - History consumes exact accepted ActivitySession windows. Keep UTC plus recorded date/offset/zone, monotonic durations, stable IDs, epoch-protected clear boundaries, and off-UI FIFO database operations. Preserve corrupt/newer data on failure. Default launch is always Ready; saved preferences apply before the first monitoring baseline. Clear keeps preferences, current timer and session estimate. Do not commit actual databases or user history.
+
+- Milestone 6 candidate version lives in Directory.Build.props. Keep packages.lock.json files current deliberately; package with scripts/Package-Portable.ps1 (locked restore, full build/tests/audit before self-contained publish). Generated ZIPs/manifests/smoke data belong under ignored artifacts/ only. No installer, signing, Release/tag or autostart is authorized by the candidate workflow.
+- Use scripts/Start-IsolatedReview.ps1 and temporary databases for destructive qualification. Never delete real owner history to complete a test. Preserve the single Windows matrix and public-release blockers in docs/MILESTONE-6-REVIEW.md; unit tests do not prove OS integration. Preserve upstream third-party notices byte-for-byte; they do not select the project's license.
