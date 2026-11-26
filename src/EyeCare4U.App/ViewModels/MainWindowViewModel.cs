@@ -7,6 +7,13 @@ namespace EyeCare4U.App.ViewModels;
 public sealed class MainWindowViewModel : INotifyPropertyChanged
 {
     private readonly ReminderTimer _timer;
+    private readonly ActivitySession? _session;
+    private string _idleThresholdText = "120";
+    private string _lastStatus = "";
+    private string _lastActivityStatus = "";
+    private string _lastEstimatedTime = "";
+    private string _lastMonitoringNote = "";
+    private string _lastResumeNotice = "";
     private string _selectedInterval = "20";
     private string _customMinutes = "20";
     private TimerState _lastState = TimerState.Ready;
@@ -15,11 +22,54 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     public MainWindowViewModel(ReminderTimer timer)
     {
         _timer = timer;
-        StartCommand = new(() => { _timer.Start(); Refresh(); }, () => CanEditInterval && ValidationError.Length == 0);
-        PauseCommand = new(() => { _timer.Pause(); Refresh(); }, () => State == TimerState.Running);
-        ResumeCommand = new(() => { _timer.Resume(); Refresh(); }, () => State == TimerState.Paused);
-        ResetCommand = new(() => { _timer.Reset(); ApplyInterval(); Refresh(); }, () => State != TimerState.Ready);
+        StartCommand = new(() => Run(() => _timer.Start()), () => CanEditInterval && ValidationError.Length == 0 && ThresholdValidationError.Length == 0);
+        PauseCommand = new(() => Run(() => _timer.Pause()), () => State == TimerState.Running);
+        ResumeCommand = new(() => Run(() => _timer.Resume()), () => State == TimerState.Paused);
+        ResetCommand = new(() => Run(() => { _timer.Reset(); ApplyInterval(); }), () => State != TimerState.Ready);
         Refresh();
+    }
+
+    public MainWindowViewModel(ActivitySession session) : this(session.Timer)
+    {
+        _session = session;
+        _idleThresholdText = session.IdleThresholdSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        Refresh();
+    }
+
+    // Settle monitoring before changing user intent so pre-Start / post-Pause time cannot leak.
+    private void Run(Action action) { _session?.Poll(); action(); Refresh(); }
+
+    public string EstimatedTimeText
+    {
+        get
+        {
+            var span = _session?.EstimatedActiveTime ?? TimeSpan.Zero;
+            return $"{(long)span.TotalHours:00}:{span.Minutes:00}:{span.Seconds:00}";
+        }
+    }
+    public string ActivityStatusText => _session?.Status switch
+    {
+        ActivityStatus.Active => "Active — estimated from recent input.",
+        ActivityStatus.Idle => "Waiting for activity.",
+        ActivityStatus.Locked => "Session locked.",
+        ActivityStatus.PowerTransition => "Monitoring held for a power transition.",
+        _ => "Monitoring unavailable."
+    };
+    public string MonitoringNote => _session?.MonitoringNote ?? "";
+    public string ResumeNotice => _session?.ResumeNotice ?? "";
+    public string ThresholdValidationError => IdleThresholdInput.TryParse(IdleThresholdText, out _) ? "" : IdleThresholdInput.ErrorMessage;
+    public string AppliedIdleThreshold => $"Applied idle threshold: {_session?.IdleThresholdSeconds ?? 120} seconds. Session only.";
+    public string IdleThresholdText
+    {
+        get => _idleThresholdText;
+        set
+        {
+            if (!CanEditInterval || value == _idleThresholdText) return;
+            _idleThresholdText = value;
+            Changed(); Changed(nameof(ThresholdValidationError));
+            if (IdleThresholdInput.TryParse(value, out var seconds)) _session?.SetIdleThreshold(seconds);
+            Changed(nameof(AppliedIdleThreshold)); Refresh();
+        }
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -34,11 +84,12 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     public string Status => State switch
     {
         TimerState.Ready => "Ready · Timer not started",
-        TimerState.Running => "Running",
-        TimerState.Paused => "Paused",
+        TimerState.Running => _session?.IsHeld == true ? HoldStatus : "Running",
+        TimerState.Paused => "Paused by you",
         TimerState.Due => "Time for an eye break",
         _ => throw new InvalidOperationException()
     };
+    private string HoldStatus => _session?.Status == ActivityStatus.Idle ? "Waiting for activity" : $"Waiting — {ActivityStatusText}";
     public string StateName => State.ToString();
     public string RemainingText
     {
@@ -83,12 +134,18 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
     public void Refresh()
     {
+        _session?.Poll();
         _timer.Refresh();
         if (_lastState != State)
         {
             _lastState = State;
-            Changed(nameof(State)); Changed(nameof(StateName)); Changed(nameof(Status)); Changed(nameof(CanEditInterval));
+            Changed(nameof(State)); Changed(nameof(StateName)); Changed(nameof(CanEditInterval));
         }
+        if (_lastStatus != Status) { _lastStatus = Status; Changed(nameof(Status)); }
+        if (_lastActivityStatus != ActivityStatusText) { _lastActivityStatus = ActivityStatusText; Changed(nameof(ActivityStatusText)); }
+        if (_lastEstimatedTime != EstimatedTimeText) { _lastEstimatedTime = EstimatedTimeText; Changed(nameof(EstimatedTimeText)); }
+        if (_lastMonitoringNote != MonitoringNote) { _lastMonitoringNote = MonitoringNote; Changed(nameof(MonitoringNote)); }
+        if (_lastResumeNotice != ResumeNotice) { _lastResumeNotice = ResumeNotice; Changed(nameof(ResumeNotice)); }
         var remaining = RemainingText;
         if (_lastRemaining != remaining)
         {

@@ -13,6 +13,8 @@ public sealed class TrayIcon : IDisposable
     private readonly System.Drawing.Icon _image;
     private readonly Forms.ContextMenuStrip _menu = new();
     private readonly Forms.ToolStripMenuItem _status;
+    private readonly Forms.ToolStripMenuItem _monitoring;
+    private readonly Forms.ToolStripMenuItem _usage;
     private readonly Forms.ToolStripMenuItem _start;
     private readonly Forms.ToolStripMenuItem _pause;
     private readonly Forms.ToolStripMenuItem _reset;
@@ -25,6 +27,10 @@ public sealed class TrayIcon : IDisposable
         _image = new System.Drawing.Icon(stream);
         _status = new Forms.ToolStripMenuItem { Enabled = false };
         _menu.Items.Add(_status);
+        _monitoring = new Forms.ToolStripMenuItem { Enabled = false };
+        _usage = new Forms.ToolStripMenuItem { Enabled = false };
+        _menu.Items.Add(_monitoring);
+        _menu.Items.Add(_usage);
         _menu.Items.Add(new Forms.ToolStripSeparator());
         _menu.Items.Add("&Open EyeCare4U", null, (_, _) => open());
         _start = new Forms.ToolStripMenuItem("&Start", null, (_, _) => Execute(
@@ -55,7 +61,10 @@ public sealed class TrayIcon : IDisposable
     {
         _status.Text = $"{_viewModel.Status} · {_viewModel.RemainingText}";
         // Under even the legacy Windows tooltip limit of 63 characters.
-        _icon.Text = $"EyeCare4U · {_viewModel.Status} · {_viewModel.RemainingText}";
+        var tooltip = $"EyeCare4U · {_viewModel.Status} · {_viewModel.RemainingText}";
+        _icon.Text = tooltip.Length <= 63 ? tooltip : tooltip[..60] + "...";
+        _monitoring.Text = _viewModel.ActivityStatusText;
+        _usage.Text = $"Estimated active PC time: {_viewModel.EstimatedTimeText}";
         _start.Text = _viewModel.State == TimerState.Paused ? "&Resume" : "&Start";
         _start.Enabled = (_viewModel.State == TimerState.Paused ? _viewModel.ResumeCommand : _viewModel.StartCommand).CanExecute(null);
         _pause.Enabled = _viewModel.PauseCommand.CanExecute(null);

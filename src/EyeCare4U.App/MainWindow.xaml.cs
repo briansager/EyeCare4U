@@ -27,6 +27,8 @@ public partial class MainWindow : Window
         {
             nameof(MainWindowViewModel.Status) => StatusText,
             nameof(MainWindowViewModel.ValidationError) => ValidationText,
+            nameof(MainWindowViewModel.ThresholdValidationError) => ThresholdValidationText,
+            nameof(MainWindowViewModel.ActivityStatusText) => ActivityStatusText,
             _ => null
         };
         if (element is null) return;

@@ -1,29 +1,27 @@
 # EyeCare4U
 
-A Windows desktop portfolio project that helps users remember eye breaks during work or gaming.
+A Windows desktop portfolio project for configurable eye-break reminders during work or gaming.
 
-**Current status: Milestone 2 implemented locally.** A session-only countdown and system tray integration are available. The app starts Ready and waits for an explicit Start. Timer time is elapsed reminder time, not measured screen usage. The 20-second break countdown remains a future feature. No camera features, AI dependencies, tracking, storage, notifications, sounds, overlays, or autostart exist in this milestone.
+**Current status: Milestone 3.** The app has a reminder countdown, system tray integration, session-only estimated active PC time, and automatic holds for detected idle, lock, suspend, and monitoring uncertainty. It launches Ready, without automatically starting a reminder. The planned 20-second break is still a future feature. No camera, AI, database, persistent settings/history, autostart, per-app tracking, notifications, sound, overlays, or telemetry are implemented.
 
 ## Technology and structure
 
-- C#, .NET 10 LTS, WPF/XAML, and straightforward MVVM; no MVVM framework or service container.
-- `EyeCare4U.slnx`: App, Core, and two test projects.
-- `src/EyeCare4U.Core`: UI-independent countdown state machine and whole-minute input validation. Uses injected `TimeProvider` timestamps; no WPF or Windows dependency.
-- `src/EyeCare4U.App`: views, view model, commands, application lifecycle, and a small Windows Forms `NotifyIcon` adapter. Window and tray use the same view model and Core timer instance.
-- `src/EyeCare4U.App/Assets/EyeCare4U.ico`: original application-owned eye icon, drawn locally, with 16/32/48-pixel images. No downloaded branding.
-- `tests/EyeCare4U.Core.Tests`: deterministic timer and input-parser behavior tests.
-- `tests/EyeCare4U.App.Tests`: view-model command, validation, and state-notification tests; Windows target, without launching a window.
-- `.github/workflows/build.yml`: Windows restore, Release build, and tests on pushes and pull requests. Hosted CI results must be checked separately on GitHub; a local build does not verify hosted CI.
+C#, .NET 10 LTS, WPF/XAML, and straightforward MVVM. No MVVM framework or service container.
 
-Application code has no additional NuGet packages. Windows Forms is a Windows Desktop framework reference. Tests use xUnit 2.9.3, Microsoft.NET.Test.Sdk 17.14.1, and xunit.runner.visualstudio 3.1.4. SQLite is deferred.
+- `src/EyeCare4U.Core`: reminder state machine; activity accounting and credited-activity clock; input/power counter validation; interval/threshold parsing. No WPF or Windows API dependency.
+- `src/EyeCare4U.App`: views, view model, application lifecycle, Windows input/session/power adapter, and Windows Forms NotifyIcon adapter. Window and tray share one ActivitySession, reminder, and view model.
+- `tests/EyeCare4U.Core.Tests`: deterministic timer, usage, policy, parsing, and counter tests.
+- `tests/EyeCare4U.App.Tests`: view-model validation, commands, holds, and state-notification tests, without launching a window.
+- `.github/workflows/build.yml`: Windows restore, Release build, and full tests. Check the corresponding GitHub Actions run independently of local results.
+- `Assets/EyeCare4U.ico` in App: original application-owned eye icon, drawn locally with no downloaded branding.
 
-## Prerequisites and SDK policy
+No new NuGet dependency was introduced for Milestone 3. Windows Forms is a built-in Windows Desktop framework reference; Windows monitoring uses native APIs. Test dependencies remain xunit 2.9.3, Microsoft.NET.Test.Sdk 17.14.1, and xunit.runner.visualstudio 3.1.4.
 
-Use a supported Windows installation (Windows 11 recommended) and **.NET SDK 10.0.404**, x64 on an x64 machine, including Windows Desktop targeting/runtime components supplied by the .NET SDK installer for Windows. A runtime alone is insufficient. The command-line SDK is sufficient; Visual Studio is optional. No system software is installed by this repository.
+## Prerequisites and commands
 
-[Download the .NET 10 SDK](https://dotnet.microsoft.com/en-us/download/dotnet/10.0). Microsoft lists .NET 10 as an active LTS release supported through November 14, 2028 in its [official support policy](https://dotnet.microsoft.com/en-us/platform/support/policy), verified November 26, 2026 during Milestone 1.
+Use supported Windows (Windows 11 recommended) and **.NET SDK 10.0.404**, x64 on an x64 machine, including the Windows Desktop components from the .NET SDK installer. A runtime alone is insufficient. Visual Studio is optional; no system software is installed by this repository.
 
-`global.json` selects SDK `10.0.404`, permits newer stable patches within the **10.0.4xx feature band** (`latestPatch`), and disallows prerelease SDKs. It does not advance to another feature band or major version. Keep current with supported patches. CI reads the same file using `actions/setup-dotnet`; update the baseline deliberately and validate locally and in CI together.
+[Download .NET 10 SDK](https://dotnet.microsoft.com/en-us/download/dotnet/10.0). Microsoft's [support policy](https://dotnet.microsoft.com/en-us/platform/support/policy) lists .NET 10 LTS support through November 14, 2028, verified during Milestone 1. `global.json` selects 10.0.404 and allows newer stable patches in the 10.0.4xx feature band (`latestPatch`), without prerelease, feature-band, or major-version roll-forward. CI reads the same file. Update the baseline deliberately and validate locally and in CI together.
 
 ```powershell
 Set-Location 'C:\Users\Brian\Documents\GitHub\EyeCare4U'
@@ -34,63 +32,91 @@ dotnet test EyeCare4U.slnx --configuration Release --no-build --no-restore
 dotnet run --project src/EyeCare4U.App/EyeCare4U.App.csproj --configuration Release --no-build
 ```
 
-The SDK must resolve to 10.0.404 or a later stable patch in that feature band. Restore can require NuGet access. Building the solution and running the App tests/UI require Windows. Core is UI-independent.
+Restore can require NuGet access. Building the whole solution and running the App tests/UI require Windows; Core is UI-independent.
 
-## Timer behavior
+## Estimated activity: exact policy
 
-| State | Available actions | Remaining time |
+“Estimated active PC time — this session” begins at the first reliable launch sample and ends when the app exits. It continues independently of Ready, Running, Paused, or Due. Totals and settings are not saved. Reopening the same hidden window does not begin a new session.
+
+The input-idle threshold defaults to **120 seconds**. In Ready, enter a whole number from **30 through 900 seconds**. Whitespace is accepted; signs, fractions, overflow, and out-of-range values are rejected. Invalid text stays visible with an accessible error and the last applied threshold displayed; Start is disabled until corrected. Monitoring continues under the explicitly displayed applied setting. Valid changes settle the old policy, preserve accumulated totals, and establish a fresh baseline under the new policy. They never recalculate history. No threshold changes are allowed while Running (including held), Paused, or Due.
+
+The pre-threshold grace period counts as estimated activity. With two reliable samples no more than five seconds apart, only the portion before the known idle cutoff is credited. For example, at 119.5 seconds idle with a 120-second threshold, a one-second sample credits 0.5 seconds. If new input arrives after a cutoff, only the union of the previous grace window and the window beginning at the latest input is credited. Input occurring earlier within the polling interval cannot be reconstructed; conservative undercounting is possible. The previous sample being active never justifies crediting the whole interval. Repeated samples cannot count time twice.
+
+Locked, suspended, unavailable, and uncertain intervals are excluded. At detected lock/unlock or power boundaries, the unresolved interval since the previous sample is discarded, rather than guessing its active portion. Polling also queries current lock state to handle startup/recovery and missed lock notifications; a change observed only by polling discards that boundary interval. Recovery establishes a fresh baseline without backfilling unknown time. Starting already idle/locked never fabricates activity before launch.
+
+**This is input-based estimation, not evidence of presence, screen use, looking away, or attention.** Reading, watching video, and controller-only gameplay may be classified as idle despite real use. Recent or injected input can overestimate activity. Lack of input does not establish that an eye break occurred. There are no controller hooks or camera features.
+
+## Monitoring failures, counters, and gaps
+
+A single one-second dispatcher cadence polls monitoring and refreshes both window and tray. Actions also settle a sample before changing timer intent. Elapsed durations use monotonic timestamps, not tick subtraction or wall-clock time.
+
+- Native failure, unknown/disconnected session state, notification-registration failure, counter regression, or implausible input timing produces recoverable **Monitoring unavailable**. Totals and timer remaining are preserved; retries use the same cadence.
+- A delay **up to five seconds** can be reconciled when samples remain consistent. A longer or negative monotonic gap is entirely excluded, displayed as unavailable, and followed by a fresh reliable baseline. A monitoring stall is not presumed to be active use.
+- GetLastInputInfo's 32-bit tick is validated against 64-bit uptime across rollover. Regressed/future timestamps and input ages over 24 hours are treated as uncertain. After a discontinuity, fresh changed input may be required. At startup/recovery after 49.7 days uptime, unchanged input is ambiguous across a full wrap; monitoring waits for a changed input tick observed within a sample interval.
+- Uptime and awake-only interrupt time are compared to help detect missed sleep notifications and discontinuities. A difference over 100 ms discards that unresolved interval; the allowance accounts for coarse counters/separate API calls. Sub-resolution transitions and platform-specific power behavior cannot be reconstructed perfectly.
+- Resume discards previous baselines and re-evaluates lock/input state. Sleep duration is not added to activity or reminder time. Automatic resume is not evidence that a person is present. The additional user-resume message is ignored as a duplicate wake.
+
+The fallback intentionally undercounts around failures, long UI stalls, and lifecycle events, rather than inventing activity. Real Windows lock, hibernate, sleep, Modern Standby, RDP, and recovery behavior still require owner-machine verification. No live status is claimed while the machine is actually suspended; a notice after wake reports baseline handling.
+
+## Reminder states and automatic holds
+
+| State | Actions | Behavior |
 | --- | --- | --- |
-| Ready | Choose interval; Start | Full selected interval |
-| Running | Pause; Reset | Monotonic elapsed time reduces remaining time |
-| Paused | Resume; Reset | Preserved until Resume |
-| Due | Reset | Zero; “Time for an eye break” |
+| Ready | Configure; Start | Full selected interval, no running intent |
+| Running | Pause; Reset | Armed by the user; consumes only credited activity |
+| Paused | Resume; Reset | “Paused by you”; automatic recovery cannot resume it |
+| Due | Reset | Zero; “Time for an eye break”; no automatic restart |
 
-Choose 20, 30, or 60 minutes, or Custom with a whole number from 1 through 240. Whitespace around a whole number is accepted. Fractions, signs, out-of-range values, nonnumeric input, and overflow are rejected. Invalid custom text remains visible with an error; the countdown shows `--:--` and Start is disabled in both the window and tray. No fallback interval is silently started.
+Choose 20, 30, 60, or a custom 1–240 whole-minute interval in Ready. Invalid interval input remains visible, displays `--:--`, and disables Start. Reset restores the full selected interval, returns Ready, and clears running intent. From Due, Reset and then Start are explicit user actions. Repeated invalid state commands do not restart the timer. Displayed seconds round upward so 00:00 does not appear before the credited-activity deadline.
 
-Interval changes are allowed only in Ready. Reset restores the full selected interval and returns to Ready without starting. From Due, explicitly Reset and then Start to begin another interval. Repeated or invalid Core state commands return false and do not restart the interval; repeated Reset is harmless. Pause at or beyond the deadline transitions to Due instead of pausing at zero. A Due state change is emitted once per interval. Core callers use `Refresh()` to reconcile elapsed deadlines; reading `Remaining` clamps at zero without firing state events.
+Automatic blockers freeze the reminder's credited-activity clock; they do not impersonate a manual Pause. Running while held means **armed and waiting**, not consuming. Start/Resume while blocked is allowed and displays why it is waiting. Counting continues automatically only after all blockers clear while the user still intends Running. Unlocking while still idle cannot resume consumption; waking cannot override manual Pause. Inactivity never resets the interval or marks a break completed. Due remains Due through monitoring changes.
 
-`TimeProvider.System` supplies monotonic timestamps; elapsed time is computed from those timestamps. The WPF dispatcher refreshes the display/state every 250 ms rather than subtracting a second per tick. A busy UI may delay the visible update, but the next refresh reconciles elapsed time. Displayed seconds round upward so `00:00` is not shown before the deadline. Core has no scheduler or disposable timer resources; application exit stops and detaches the dispatcher refresh.
+Core ReminderTimer still accepts injected time and is independently tested. In the application its time source is the ActivitySession clock, which advances only by conservatively credited activity; Windows APIs stay outside Core.
 
-**Limits:** settings are session-only and return to 20 minutes at the next launch. Time while the app is closed is not restored. There is no explicit suspend/resume, idle, lock, or activity policy; those belong to Milestone 3. Do not interpret timer time as screen use, presence, looking away, or attention. OS/power-state behavior has not been validated. No automatic restart, break countdown, notification balloon, sound, forced focus, overlay, or global hotkey is provided.
+## Window, tray, and accessibility
 
-## Window and tray
+Hide to tray keeps monitoring and an armed reminder alive, subject to automatic holds. The existing window is restored by tray Open or double-click. The shared tray menu provides status, estimated usage, Open, Start/Resume, Pause, Reset, and Exit. Tooltips are capped at 63 characters. Only a user Open request activates the window; Due does not force focus.
 
-**Hide to tray** hides the existing window while the app and countdown remain active. Use the icon's context menu: Open EyeCare4U, Start or Resume, Pause, Reset, and Exit. Commands are enabled according to the shared state. Due and remaining time appear in the tray status/tooltip. Double-clicking the icon also restores the existing window. The tooltip remains below 63 characters. Open only activates the window after a user request; reaching Due does not force focus.
+Main-window Close exits the app. Shutdown stops/detaches polling, unsubscribes native hooks, unregisters session/power notifications before window destruction, and disposes tray resources. No hooks or polling remain after exit.
 
-The main window's Close button exits, even while running. Tray Exit shuts down the application. Shutdown disposes the icon, menu, and icon image and stops the dispatcher refresh. A new app launch creates a new session; opening the tray window does not create a new timer.
+Controls support Tab/Shift+Tab, scrolling, and access keys: Alt+S Start, Alt+P Pause, Alt+R Resume, Alt+E Reset, Alt+M interval, Alt+C custom minutes, Alt+H Hide, and Alt+T idle threshold. Labels/settings have accessible names and visible validation. Status/error changes are polite live regions; countdown and estimated-time values are not live regions. No announcements are deliberately emitted every second. Minimum window size is 360 × 360; content scrolls and controls/labels wrap. Actual Windows scaling and screen-reader behavior remain unverified.
 
-Controls support Tab/Shift+Tab and access keys (Alt+S Start, Alt+P Pause, Alt+R Resume, Alt+E Reset, Alt+M interval, Alt+C custom input, Alt+H Hide). Scroll or use Page Up/Page Down and Ctrl+Home/Ctrl+End when focus is outside an input. Content scrolls vertically at the 360 × 360 minimum window size; buttons wrap. Status changes are polite live-region events while visible; the countdown is not a live region and is not deliberately announced every second. A screen-reader session remains an outstanding manual check.
+## Practical manual review
 
-## Review steps and validation status
+1. Launch and confirm Ready/20:00, estimated activity beginning near zero, monitoring status, and default 120-second threshold. Leave the timer Ready and confirm estimated time can accumulate.
+2. Try thresholds `29`, `901`, `1.5`, and text; confirm visible errors, the unchanged applied threshold, and disabled Start. Correct to `30`; verify prior totals remain. Set Custom interval to `1`.
+3. Start and provide keyboard/mouse input. Stop input longer than 30 seconds. Confirm Waiting for activity, frozen remaining time, and frozen estimated total after the grace period. Provide input and confirm automatic continuation without resetting.
+4. Pause manually. Provide input and confirm estimated activity can grow while the reminder remains Paused by you. Repeat through owner-controlled lock/unlock and sleep/wake; never rely on simulation as proof of Windows behavior.
+5. During a run, lock, wait, unlock; check no locked time was credited. Repeat with sleep/hibernate/Modern Standby as available. After wake, verify a fresh baseline, no sleep jump, no immediate Due, and no auto-resume from manual Pause. Test overlapping idle/lock conditions. Start/Resume while blocked should arm and wait.
+6. Reach Due using actual active time, then confirm input/unlock/recovery cannot restart it. Reset restores Ready/full interval. Settings return to defaults on a new app launch.
+7. Exercise tray commands against the visible window. Hide during a run, wait, restore, and verify the same session/window and policy-aware countdown. Repeat Open/double-click, Close, and tray Exit (including Exit while hidden); visually check icon removal.
+8. Check the new section at minimum window size, actual increased Windows text/display scaling, keyboard-only operation, and a screen reader. An owner-controlled delayed UI/debugger pause can exercise the five-second gap fallback; do not interpret that simulation as sleep verification.
 
-1. Launch using the commands above; confirm Ready and 20:00 without automatic start.
-2. Try presets, then Custom. Enter `0`, `241`, `1.5`, and text; confirm the error and disabled Start. Correct it to `1`.
-3. Start, wait a few seconds, Pause, wait, Resume, and Reset. Confirm settings are locked while Running/Paused/Due and Reset does not start.
-4. Run a one-minute interval to zero; confirm Due stays at zero. Explicitly Reset and Start for another interval.
-5. Right-click the tray icon (possibly in Windows' hidden-icons area). Exercise tray commands while watching the window. Hide during a run, wait, and use Open to restore; confirm elapsed time continued and no second window/timer appeared. Repeat Open/double-click several times.
-6. Exercise both the window Close button and tray Exit on separate launches, including Exit while hidden. Confirm the process terminates and its icon disappears.
-7. Check minimum size, keyboard access, actual increased Windows text/display scaling, and a screen reader.
-
-Local results: restore and Release build passed with 0 warnings/errors; **52 tests passed** (39 Core, 13 view model). Window controls, invalid input, paused display stability, Due, Reset, Close/process termination, and Hide/process survival were checked. The actual window was also displayed in a temporary layout-only review host at 360 × 360 and with a 150% content-scale simulation; wrapping and keyboard reachability passed. That host was not the tray application, and its simulation is not actual Windows text/DPI scaling.
-
-Outstanding: direct tray-menu synchronization, observing countdown progress while hidden/restored through the tray, repeated Open/double-click, tray Exit, visual icon removal, actual Windows scaling, and screen-reader announcements. The available desktop tools expose app windows but not the notification-area surface. Hide was observed; the hidden test process was then closed with a termination signal because it could not be restored through those tools. Check the corresponding GitHub Actions run separately for hosted CI status. See [Milestone 2 review](docs/MILESTONE-2-REVIEW.md) for evidence and limitations.
+Preserved Milestone 2 outstanding checks: direct tray synchronization; hidden countdown/restoration; tray Exit and visual icon removal; actual Windows scaling; screen-reader behavior. See [Milestone 3 review](docs/MILESTONE-3-REVIEW.md) for current automated/manual evidence, limitations, and publication details. Hosted CI must be checked on the actual pushed commit.
 
 ## Seven-milestone roadmap
 
-1. **Desktop foundation (implemented):** App/Core separation, MVVM shell, SDK policy, documentation, Windows build workflow.
-2. **Timer and system tray (implemented locally):** countdown, start/pause/resume/reset, session-only intervals, tray adapter, deterministic tests. Manual tray checks listed above remain outstanding.
-3. **Estimated usage and power-state policy (future):** conservative usage estimates, inactivity/lock limitations, explicit suspend/resume behavior. Input inactivity cannot establish absence, looking away, or attention.
-4. **Fuller break reminders (future):** 20-second break feature, notifications, optional sound/overlay behavior with user control and keyboard accessibility.
-5. **Local persistence and preferences (future):** SQLite, saved settings, minimal local history, retention/deletion controls, optional autostart.
-6. **Release readiness and evidence (future):** accessibility/reliability review, packaging, carefully sourced timing/research documentation, owner-selected license before public release.
-7. **Optional computer vision exploration (future):** only here consider opt-in local camera processing, consent, privacy controls, and documented limitations. No earlier camera or AI scaffolding.
+1. Desktop foundation — implemented.
+2. Timer and system tray — implemented; outstanding manual checks preserved.
+3. Session-only estimated usage and idle/lock/sleep-aware timing — implemented; platform checks distinguished from deterministic tests.
+4. Fuller reminders — future: 20-second break, notifications, sounds/overlays with user control and accessibility.
+5. Local persistence/preferences — future: SQLite, minimal history, retention/deletion, optional autostart.
+6. Release readiness/evidence — future: packaging, reliability/accessibility, carefully sourced research, owner-selected license.
+7. Optional computer vision — future only: explicit opt-in, local processing, consent, and documented limits. No camera or AI scaffolding before this milestone.
 
-## Timing, evidence, and privacy
+## Evidence, privacy, and API references
 
-The default 20-minute interval and planned 20-second break are configurable reminders, not medical treatment or a medically optimal schedule. Recommended break timing and research evidence will be documented carefully in a later milestone. No research conclusions or medical-effectiveness claims are established here.
+The 20-minute default and planned 20-second break are configurable reminders, not medical treatment or a medically optimal schedule. Break-timing recommendations and research evidence will be documented carefully in a later milestone; this app makes no medical-effectiveness claim.
 
-**Implemented now:** reminder timing and session-only settings run locally. The app does not collect input activity, estimate screen use, access a camera, store history/settings, or send telemetry. It contains no application networking or database code. Development tools and GitHub Actions have their own network behavior. No camera features existed in Milestone 1, and none exist in Milestone 2.
+**Implemented:** local session-only input-age/lock/power processing and an accumulated duration. No keystrokes, mouse coordinates, screenshots, foreground titles, process inventories, or browsing history are recorded. Session-query buffers are freed immediately; only connection/lock flags are read into managed code. Nothing is persisted or sent as application telemetry. Development tools/GitHub Actions have their own network behavior. No camera features existed in Milestones 1–2 or exist now.
 
-**Future intentions:** prefer local processing and minimal data collection, and explain measurements, retention, and deletion before introducing collection. Future usage values must be described as estimates; inactivity does not prove absence or looking away. Computer vision is deferred to Milestone 7. These future privacy controls are not implemented features.
+**Future intentions:** continue minimal collection/local processing, explain any future retained data and deletion controls before introducing them, and describe usage values as estimates. Persistent privacy controls and optional camera processing are not implemented promises.
 
-No release is published and no license has been selected. The owner will choose a license before public release. The owner has authorized routine milestone commits and pushes after validation and a staged-content review; see AGENTS.md. Documented outstanding manual checks remain distinct from automated validation.
+Microsoft documentation consulted for the adapter and conservative policy:
+
+- [GetLastInputInfo](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getlastinputinfo): current-session scope and non-monotonic input timestamps.
+- [GetTickCount64](https://learn.microsoft.com/en-us/windows/win32/api/sysinfoapi/nf-sysinfoapi-gettickcount64) and [QueryUnbiasedInterruptTime](https://learn.microsoft.com/en-us/windows/win32/api/realtimeapiset/nf-realtimeapiset-queryunbiasedinterrupttime): elapsed counters and awake-only time.
+- [WTS session query](https://learn.microsoft.com/en-us/windows/win32/api/wtsapi32/nf-wtsapi32-wtsquerysessioninformationw), [extended session flags](https://learn.microsoft.com/en-us/windows/win32/api/wtsapi32/ns-wtsapi32-wtsinfoex_level1_w), and [session notification registration](https://learn.microsoft.com/en-us/windows/win32/api/wtsapi32/nf-wtsapi32-wtsregistersessionnotification). Modern supported Windows flag meanings are used, not Windows 7's reversed flags.
+- [Power notification registration](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-registersuspendresumenotification), [power messages](https://learn.microsoft.com/en-us/windows/win32/power/wm-powerbroadcast), and [automatic resume limitations](https://learn.microsoft.com/en-us/windows/win32/power/pbt-apmresumeautomatic).
+
+No release/license is selected. The owner will choose a license before public release. Standing milestone commit/push authorization and safety/review requirements are recorded in AGENTS.md. No work beyond Milestone 3 is included.

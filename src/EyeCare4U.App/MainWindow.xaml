@@ -6,6 +6,9 @@
         Background="#F3F6F5" FontFamily="Segoe UI" FontSize="16" Foreground="#183C35" UseLayoutRounding="True">
     <Window.Resources>
         <Style TargetType="TextBlock"><Setter Property="TextWrapping" Value="Wrap" /></Style>
+        <Style x:Key="OptionalText" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+            <Style.Triggers><Trigger Property="Text" Value=""><Setter Property="Visibility" Value="Collapsed" /></Trigger></Style.Triggers>
+        </Style>
         <Style TargetType="Button">
             <Setter Property="Padding" Value="16,10" /><Setter Property="Margin" Value="0,0,8,8" />
             <Setter Property="MinHeight" Value="44" />
@@ -34,6 +37,25 @@
                     <TextBlock Text="When a break is due, Reset returns to Ready. Start begins the next interval only when you choose." Foreground="#425E56" />
                 </StackPanel>
             </Border>
+            <Border Background="#E3EEE8" CornerRadius="10" Padding="16" Margin="0,20,0,0">
+                <StackPanel>
+                    <TextBlock Text="Estimated active PC time — this session." FontSize="20" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding EstimatedTimeText}" FontSize="28" AutomationProperties.LiveSetting="Off"
+                               AutomationProperties.Name="{Binding EstimatedTimeText, StringFormat=Estimated active PC time this session: {0}}" />
+                    <TextBlock x:Name="ActivityStatusText" Text="{Binding ActivityStatusText}" AutomationProperties.LiveSetting="Polite" Margin="0,6,0,4" />
+                    <TextBlock Style="{StaticResource OptionalText}" Text="{Binding MonitoringNote}" />
+                    <TextBlock Style="{StaticResource OptionalText}" Text="{Binding ResumeNotice}" />
+                    <Label Target="{Binding ElementName=IdleThresholdInput}" Padding="0,10,0,4">
+                        <AccessText Text="Input-idle _threshold in seconds (30–900)" TextWrapping="Wrap" />
+                    </Label>
+                    <TextBox x:Name="IdleThresholdInput" Text="{Binding IdleThresholdText, UpdateSourceTrigger=PropertyChanged}" Padding="8"
+                             IsEnabled="{Binding CanEditInterval}" MaxLength="32" AutomationProperties.Name="Input idle threshold in seconds, 30 through 900"
+                             AutomationProperties.ItemStatus="{Binding ThresholdValidationError}" AutomationProperties.HelpText="Change only in Ready. Valid changes apply prospectively with a fresh monitoring baseline." />
+                    <TextBlock Style="{StaticResource OptionalText}" x:Name="ThresholdValidationText" Text="{Binding ThresholdValidationError}" Foreground="#9D2525" AutomationProperties.LiveSetting="Polite" Margin="0,6,0,0" />
+                    <TextBlock Text="{Binding AppliedIdleThreshold}" Margin="0,6,0,6" />
+                    <TextBlock Text="Input-based estimate, not attention. Reading, video, and controller-only play may look idle. Inactivity does not prove an eye break." />
+                </StackPanel>
+            </Border>
             <TextBlock Text="Interval settings" FontSize="21" FontWeight="SemiBold" Margin="0,20,0,6" />
             <TextBlock Text="Session only. Reset to Ready before changing the interval." Foreground="#425E56" Margin="0,0,0,8" />
             <Label Target="{Binding ElementName=IntervalSelector}" Padding="0,4"><AccessText Text="Interval (_minutes)" TextWrapping="Wrap" /></Label>
@@ -48,12 +70,12 @@
                          IsEnabled="{Binding CanEditInterval}" Padding="8" MaxLength="32"
                          AutomationProperties.Name="Custom whole minutes, 1 through 240" AutomationProperties.ItemStatus="{Binding ValidationError}" AutomationProperties.HelpText="Enter a whole number from 1 through 240. Settings last for this session." />
             </StackPanel>
-            <TextBlock x:Name="ValidationText" AutomationProperties.LiveSetting="Polite" Text="{Binding ValidationError}" Foreground="#9D2525" Margin="0,8,0,0" />
+            <TextBlock Style="{StaticResource OptionalText}" x:Name="ValidationText" AutomationProperties.LiveSetting="Polite" Text="{Binding ValidationError}" Foreground="#9D2525" Margin="0,8,0,0" />
             <TextBlock Text="Future break feature: 20-second break. The break countdown is not implemented." Margin="0,16,0,12" />
             <WrapPanel><Button Content="_Hide to tray" Click="HideToTray" /></WrapPanel>
-            <TextBlock Text="The timer continues while hidden. Open EyeCare4U from its tray icon to restore this window. Closing the window exits the app." Foreground="#425E56" />
+            <TextBlock Text="Monitoring and an armed timer continue while hidden, subject to automatic holds. Open EyeCare4U from its tray icon to restore this window. Closing the window exits the app." Foreground="#425E56" />
             <TextBlock Text="Reminders support break habits and do not provide medical advice. These timings are not treatment or a medically optimal schedule." Foreground="#425E56" Margin="0,20,0,8" />
-            <TextBlock Text="Milestone 2 · Timer and system tray" FontSize="13" Foreground="#425E56" Margin="0,8,0,8" />
+            <TextBlock Text="Milestone 3 · Estimated usage and automatic holds" FontSize="13" Foreground="#425E56" Margin="0,8,0,8" />
         </StackPanel>
     </ScrollViewer>
 </Window>
