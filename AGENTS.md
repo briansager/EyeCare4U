@@ -1,0 +1,17 @@
+# EyeCare4U contributor guidance
+
+- Work only in the requested milestone. Do not begin the next milestone without a user request.
+- Standing owner authorization: after each milestone, run the required validation, review all changes and staged contents for accidental or unrelated files and secrets, then commit and push to `origin/main` when the required automated checks pass. Routine milestone commits and pushes do not require another confirmation. This authorization replaces the earlier instruction to stop before committing or pushing.
+- Exclude generated output, local settings, secrets, databases, and unrelated files from commits. Preserve user changes and documented outstanding manual checks. Automated checks do not verify tray behavior, actual Windows text/display scaling, or screen-reader behavior.
+- Inspect origin and remote history before publishing. Never force-push, overwrite remote history, or discard user changes. If authentication or remote divergence blocks publication, report the precise blocker.
+- After pushing, check the resulting GitHub Actions run when tooling permits. Fix implementation-caused CI failures, rerun validation, commit, and push the correction under the same authorization. Report the commit hash, push result, CI status, and remaining manual checks.
+- `EyeCare4U.slnx` contains `src/EyeCare4U.App` (WPF views and view models) and `src/EyeCare4U.Core` (UI-independent logic).
+- Follow straightforward MVVM. Keep view code-behind limited to UI concerns. Core must not reference WPF or the App project. Avoid speculative services and containers.
+- Use the SDK policy in `global.json` and README for local development and CI. Validate with `dotnet restore EyeCare4U.slnx` and `dotnet build EyeCare4U.slnx --configuration Release --no-restore`.
+- Launch with `dotnet run --project src/EyeCare4U.App/EyeCare4U.App.csproj --configuration Release --no-build`. Check resizing, keyboard scrolling, and increased display/text scaling after UI changes.
+- `tests/EyeCare4U.Core.Tests` covers timer/input behavior; `tests/EyeCare4U.App.Tests` covers view-model commands and validation. Run `dotnet test EyeCare4U.slnx --configuration Release --no-build --no-restore` after the Release build. Tests must advance injected time without real waits. Do not add empty test projects or tests of constants merely to report success.
+- Keep Ready/Running/Paused/Due transitions in Core. Use monotonic timestamps, not UI tick counts. Window and tray must share one timer; interval changes are allowed only in Ready. Settings remain session-only until persistence is explicitly requested. Power-state and usage-estimation policy begin in Milestone 3; fuller reminders begin in Milestone 4.
+- Describe future usage measurements as estimates. Input inactivity does not prove absence, looking away, or attention. Do not imply medical treatment or an optimal break schedule.
+- Prefer local processing and minimal data collection. Clearly distinguish privacy intentions from implemented behavior; never imply unimplemented privacy controls exist.
+- Computer vision is deferred exclusively to Milestone 7. Do not add camera access, AI dependencies, presence/gaze estimation, or placeholder AI services earlier.
+- Do not add a license before the owner chooses one.

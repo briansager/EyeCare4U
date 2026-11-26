@@ -1,0 +1,25 @@
+name: Windows build
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select .NET SDK from global.json
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Restore
+        run: dotnet restore EyeCare4U.slnx
+      - name: Build Release
+        run: dotnet build EyeCare4U.slnx --configuration Release --no-restore
+
+      - name: Run tests
+        run: dotnet test EyeCare4U.slnx --configuration Release --no-build --no-restore

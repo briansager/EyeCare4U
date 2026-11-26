@@ -1,0 +1,59 @@
+<Window x:Class="EyeCare4U.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="EyeCare4U" Width="860" Height="800" MinWidth="360" MinHeight="360"
+        Icon="Assets/EyeCare4U.ico" WindowStartupLocation="CenterScreen"
+        Background="#F3F6F5" FontFamily="Segoe UI" FontSize="16" Foreground="#183C35" UseLayoutRounding="True">
+    <Window.Resources>
+        <Style TargetType="TextBlock"><Setter Property="TextWrapping" Value="Wrap" /></Style>
+        <Style TargetType="Button">
+            <Setter Property="Padding" Value="16,10" /><Setter Property="Margin" Value="0,0,8,8" />
+            <Setter Property="MinHeight" Value="44" />
+        </Style>
+    </Window.Resources>
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                  Focusable="True" AutomationProperties.Name="EyeCare4U overview">
+        <StackPanel MaxWidth="720" Margin="20" HorizontalAlignment="Stretch">
+            <TextBlock Text="EYECARE4U" FontSize="14" FontWeight="Bold" Foreground="#34695C" />
+            <TextBlock Text="Make room for a break." FontSize="30" FontWeight="SemiBold" Margin="0,10,0,10" />
+            <TextBlock Text="A configurable reminder to pause during work or gaming. Elapsed timer time is not measured screen usage." Foreground="#425E56" Margin="0,0,0,20" />
+            <Border Background="White" BorderBrush="#C9D9D2" BorderThickness="1" CornerRadius="12" Padding="16">
+                <StackPanel>
+                    <TextBlock Text="{Binding StateName}" FontSize="14" Foreground="#425E56" />
+                    <TextBlock x:Name="StatusText" Text="{Binding Status}" AutomationProperties.LiveSetting="Polite"
+                               FontSize="23" FontWeight="SemiBold" Margin="0,6,0,6" />
+                    <TextBlock x:Name="CountdownLabel" Text="Remaining interval time" Foreground="#425E56" />
+                    <TextBlock Text="{Binding RemainingText}" FontSize="40" FontWeight="SemiBold"
+                               AutomationProperties.Name="{Binding RemainingText, StringFormat=Remaining interval time: {0}}" AutomationProperties.LiveSetting="Off" />
+                    <WrapPanel Margin="0,12,0,0">
+                        <Button Content="_Start" Command="{Binding StartCommand}" />
+                        <Button Content="_Pause" Command="{Binding PauseCommand}" />
+                        <Button Content="_Resume" Command="{Binding ResumeCommand}" />
+                        <Button Content="R_eset" Command="{Binding ResetCommand}" />
+                    </WrapPanel>
+                    <TextBlock Text="When a break is due, Reset returns to Ready. Start begins the next interval only when you choose." Foreground="#425E56" />
+                </StackPanel>
+            </Border>
+            <TextBlock Text="Interval settings" FontSize="21" FontWeight="SemiBold" Margin="0,20,0,6" />
+            <TextBlock Text="Session only. Reset to Ready before changing the interval." Foreground="#425E56" Margin="0,0,0,8" />
+            <Label Target="{Binding ElementName=IntervalSelector}" Padding="0,4"><AccessText Text="Interval (_minutes)" TextWrapping="Wrap" /></Label>
+            <ComboBox x:Name="IntervalSelector" ItemsSource="{Binding IntervalOptions}" SelectedItem="{Binding SelectedInterval}"
+                      AutomationProperties.Name="Interval in minutes" IsEnabled="{Binding CanEditInterval}" Padding="8" HorizontalContentAlignment="Stretch" />
+            <StackPanel>
+                <StackPanel.Style><Style TargetType="StackPanel"><Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers><DataTrigger Binding="{Binding IsCustom}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers>
+                </Style></StackPanel.Style>
+                <Label Target="{Binding ElementName=CustomInput}" Padding="0,8,0,4"><AccessText Text="_Custom whole minutes (1–240)" TextWrapping="Wrap" /></Label>
+                <TextBox x:Name="CustomInput" Text="{Binding CustomMinutes, UpdateSourceTrigger=PropertyChanged}"
+                         IsEnabled="{Binding CanEditInterval}" Padding="8" MaxLength="32"
+                         AutomationProperties.Name="Custom whole minutes, 1 through 240" AutomationProperties.ItemStatus="{Binding ValidationError}" AutomationProperties.HelpText="Enter a whole number from 1 through 240. Settings last for this session." />
+            </StackPanel>
+            <TextBlock x:Name="ValidationText" AutomationProperties.LiveSetting="Polite" Text="{Binding ValidationError}" Foreground="#9D2525" Margin="0,8,0,0" />
+            <TextBlock Text="Future break feature: 20-second break. The break countdown is not implemented." Margin="0,16,0,12" />
+            <WrapPanel><Button Content="_Hide to tray" Click="HideToTray" /></WrapPanel>
+            <TextBlock Text="The timer continues while hidden. Open EyeCare4U from its tray icon to restore this window. Closing the window exits the app." Foreground="#425E56" />
+            <TextBlock Text="Reminders support break habits and do not provide medical advice. These timings are not treatment or a medically optimal schedule." Foreground="#425E56" Margin="0,20,0,8" />
+            <TextBlock Text="Milestone 2 · Timer and system tray" FontSize="13" Foreground="#425E56" Margin="0,8,0,8" />
+        </StackPanel>
+    </ScrollViewer>
+</Window>
